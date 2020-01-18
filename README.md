@@ -8,5 +8,5 @@ This is the code to use local linear regression on lightcurves to infer stellar 
 * Melissa Ness (Columbia, Flatiron)
 
 ## License
-Copyright 2020 the authors. LLR_lightcurve is free software made available under the MIT License. For details see the file (LICENSE.md).
+Copyright 2020 the authors. LLR_lightcurve is free software made available under the MIT License. For details see the file [LICENSE.md](LICENSE.md).
 
