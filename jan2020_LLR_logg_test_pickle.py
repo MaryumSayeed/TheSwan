@@ -125,7 +125,7 @@ def getclosestspectra(chi2_idx,test_spectrum,traindata,trainlabels):
     label_m2=label_m2[0]
     return label_m1,spectrum_m1,label_m2
 
-def getinferredlabels(trainlabels,traindata,nstars):
+def getinferredlabels(trainlabels,traindata,nstars,allfiles):
     print('Getting test data...')
     #a=open(testdata_file,'rb')
     #testdata=pickle.load(a)
@@ -153,23 +153,27 @@ def getinferredlabels(trainlabels,traindata,nstars):
     
     totalstart=time.time()
     print('Begin:',datetime.datetime.now())
-    
+    nast=0
     #for teststar in range(nast,nast+ngaia):
-    for teststar in range(0,ngaia):
-        print('Star #',teststar)
+    for teststar in range(nast,nast+ngaia):
+        file=allfiles[teststar]
+        kic=re.search('kplr(.*)-', file).group(1)
+        kic=int(kic.lstrip('0'))
+        print('Star #',teststar,kic)
         try:
             s0=time.time()
 
             test_spectrum     =testdata[teststar,:] #1 in the last column contains the flux btw
-            print(type(test_spectrum),np.shape(test_spectrum))
-            s1=time.time()
             
-            print(type(traindata[:,:]),np.shape(traindata[:,:]))
+            s1=time.time()
+            #print(type(traindata[:,:]),np.shape(traindata[:,:]))
             allchi2           =np.sum((traindata[:,:]-test_spectrum)**2.,1)
             print('   get all chi2',time.time()-s1)
 
             s1=time.time()
             chi2_idx,smallest_chi2 =getlowestchi2(allchi2,teststar)
+            print(traindata[chi2_idx,:])
+            
             print('   getlowestchi2',time.time()-s1)
 
             s1=time.time()
@@ -184,20 +188,20 @@ def getinferredlabels(trainlabels,traindata,nstars):
             print(' ','mod1',round(label_m1,2),'diff:',abs(scatter_m1))
             print(' ','mod2',round(label_m2,2),'diff:',abs(scatter_m2))
             #infer_avg[teststar-nast]   =avg_logg
-            infer_avg[teststar]   =avg_logg
-            infer_m1[teststar]    =label_m1
-            infer_m2[teststar]    =label_m2
-            min_chi2[teststar]    =smallest_chi2
+            infer_avg[teststar-nast]   =avg_logg
+            infer_m1[teststar-nast]    =label_m1
+            infer_m2[teststar-nast]    =label_m2
+            min_chi2[teststar-nast]    =smallest_chi2
             model_spectra.append(spectrum_m1)
             print('  star: {}'.format(round(time.time()-s0,2)))
             print('\n')
         except:
             # if model can't find a best fit:
             print('problem with:',teststar)
-            infer_avg[teststar]   =-99
-            infer_m1[teststar]    =-99
-            infer_m2[teststar]    =-99
-            min_chi2[teststar]    =-99
+            infer_avg[teststar-nast]   =-99
+            infer_m1[teststar-nast]    =-99
+            infer_m2[teststar-nast]    =-99
+            min_chi2[teststar-nast]    =-99
             model_spectra.append([-99])
     print('\n','total time taken:',time.time()-totalstart)
     print('End:',datetime.datetime.now())
@@ -272,7 +276,7 @@ def gettraindata(text_files,pickle_files):
     trainlabels=[]
     alldata=[]
     allpickledata=[]
-
+    allfiles=[]
     star_count=0
     data_lengths=[]
     for i in range(0,len(text_files)):
@@ -283,17 +287,23 @@ def gettraindata(text_files,pickle_files):
         
         # allpickledata.append(data[:,:,1].transpose())
         labels=np.loadtxt(text_files[i],delimiter=' ',usecols=[1])
-        trainlabels.append(labels)
+        files=np.loadtxt(text_files[i],delimiter=' ',usecols=[0],dtype=str)
         stars= len(labels)
         data = np.memmap(pickle_files[i],dtype=np.float32,mode='r',shape=(21000,stars,3))
         trainlabels.append(labels)
         traindata=data[:,:,1].transpose()
+        print(traindata[0,:])
         alldata.append(traindata)
+        allfiles.append(files)
         # data_lengths.append(stars)
         star_count+=stars
     
+    print('Concatenating data...')
+    s1=time.time()
     alldata=list(alldata[0])+list(alldata[1])+list(alldata[2])+list(alldata[3])+list(alldata[4])+list(alldata[5])+list(alldata[6])
-
+    labels=np.concatenate((trainlabels),axis=0)
+    allfiles=np.concatenate((allfiles),axis=0)
+    print('     ',time.time()-s1)
     #traindata=list(alldata[0])+list(alldata[1])+list(alldata[2]) #rows=nstars x columns=npix
     
     # Uncomment below if data NOT saved:
@@ -307,17 +317,20 @@ def gettraindata(text_files,pickle_files):
     
     #alldata=np.load('alldata.npy')
 
-    labels=np.concatenate((trainlabels))
-    
-    print('Concatenating data...')
-    s1=time.time()
+    #labels=np.concatenate((trainlabels))
+
+    #alldata=np.concatenate((alldata),axis=0)
     print('Shape of whole data set (stars, bins):',np.shape(alldata))
-    print('     ',time.time()-s1)
-    #total_stars=np.sum([np.shape(data)[0] for data in allpickledata])
+    print('Shape of labels:',np.shape(labels))
+    print('Shape of files:',np.shape(allfiles))
+    start,end=6300,6307
+    #print(allfiles[start:end])
+    #print(labels[start:end])
+
     total_stars=star_count
     print('Total # of stars:',total_stars)
     print('     ','took {}s.'.format(datetime.datetime.now()-begintime))
-    return labels,alldata,total_stars
+    return labels,alldata,total_stars,allfiles
 
 
 
@@ -329,9 +342,9 @@ train_file_txt   =[i+'.txt' for i in train_file_names]
 
 # In[6]:
 print('Getting training data...')
-train_labels,train_data,total_stars=gettraindata(train_file_txt,train_file_pickle)
+train_labels,train_data,total_stars,all_files=gettraindata(train_file_txt,train_file_pickle)
 print('Beginning inference...')
-testlabels,average,labelm1,modelm1,labelm2,min_chi2=getinferredlabels(train_labels,train_data,total_stars)
+testlabels,average,labelm1,modelm1,labelm2,min_chi2=getinferredlabels(train_labels,train_data,total_stars,all_files)
 dirr='/Users/maryumsayeed/Desktop/HuberNess/mlearning/powerspectrum/jan2020_pande_LLR4/'
 np.save(dirr+'testlabels.npy',testlabels)
 np.save(dirr+'average.npy',average)
