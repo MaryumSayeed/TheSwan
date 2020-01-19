@@ -142,7 +142,7 @@ def getinferredlabels(trainlabels,traindata,nstars,allfiles):
     print('...took: {} s.'.format(time.time()-s1))
 
     # Number of stars to analyze:
-    ngaia          =6135
+    ngaia          =14302
 
     print('Number of total stars:',nstars)
     infer_avg     =np.zeros(ngaia)
@@ -153,7 +153,7 @@ def getinferredlabels(trainlabels,traindata,nstars,allfiles):
     
     totalstart=time.time()
     print('Begin:',datetime.datetime.now())
-    nast=0
+    nast=6135
     #for teststar in range(nast,nast+ngaia):
     for teststar in range(nast,nast+ngaia):
         file=allfiles[teststar]
@@ -345,7 +345,7 @@ print('Getting training data...')
 train_labels,train_data,total_stars,all_files=gettraindata(train_file_txt,train_file_pickle)
 print('Beginning inference...')
 testlabels,average,labelm1,modelm1,labelm2,min_chi2=getinferredlabels(train_labels,train_data,total_stars,all_files)
-dirr='/Users/maryumsayeed/Desktop/HuberNess/mlearning/powerspectrum/jan2020_pande_LLR4/'
+dirr='/Users/maryumsayeed/Desktop/HuberNess/mlearning/powerspectrum/jan2020_pande_LLR5/'
 np.save(dirr+'testlabels.npy',testlabels)
 np.save(dirr+'average.npy',average)
 np.save(dirr+'labels_m1.npy',labelm1)
@@ -429,7 +429,7 @@ def plotresults(testlabels,infer,model_1,model_2):
 
 
 #plotresults(testlabels[6000+5412:6000+5412+len(average)],average,labelm1,labelm2)
-start=0
+start=6135
 plotresults(testlabels[start:start+len(average)],average,labelm1,labelm2)
 
 # In[11]:
