@@ -9,9 +9,10 @@ df       =pd.read_csv(kpfile,usecols=['KIC','kic_kepmag'])
 kp_kics  =list(df['KIC'])
 kps      =list(df['kic_kepmag'])
 
-pande_stars=np.loadtxt('pande_final_sample.txt',usecols=[1])
+pande_stars=np.loadtxt('pande_final_sample_full.txt',usecols=[1])
 astero_stars=np.loadtxt('astero_final_sample_full.txt',usecols=[1])
 
+print('# of total Pande stars:',len(pande_stars),'\n','# of total Astero. stars',len(astero_stars))
 
 
 
@@ -31,7 +32,7 @@ for i in range(0,len(pande_stars)):
 	elif logg >= 4.5 and logg < 5.:
 		b6.append(i)
 
-n=200
+n=300
 pande_stars_Cannon_idx=b1[0:n]+b2[0:n]+b3[0:n]+b4[0:n]+b5[0:n]+b6[0:n]
 
 
@@ -60,9 +61,8 @@ for i in range(0,len(astero_stars)):
 		b10.append(i)
 	
 astero_stars_Cannon_idx=b1[0:n]+b2[0:n]+b3[0:n]+b4[0:n]+b5[0:n]+b6[0:n]+b7[0:n]+b8[0:n]+b9[0:n]+b10[0:n]
-pande_stars_files =np.loadtxt('pande_final_sample.txt',usecols=[0],dtype='str')
+pande_stars_files =np.loadtxt('pande_final_sample_full.txt',usecols=[0],dtype='str')
 astero_stars_files=np.loadtxt('astero_final_sample_full.txt',usecols=[0],dtype='str')
-
 
 # Create training samples:
 pande_stars_Cannon_train=[]
@@ -90,12 +90,12 @@ for idx in astero_stars_Cannon_idx:
 pande_idx=np.arange(0,len(pande_stars),1)
 pande_idx_test=list(set(pande_idx)-set(pande_stars_Cannon_idx))
 print('this should add up')
-print(len(pande_idx),len(pande_stars_Cannon_idx),len(pande_idx_test))
+print(len(pande_idx),'=',len(pande_stars_Cannon_idx),'+',len(pande_idx_test))
 
 astero_idx=np.arange(0,len(astero_stars),1)
 astero_idx_test=list(set(astero_idx)-set(astero_stars_Cannon_idx))
 print('this should add up')
-print(len(astero_idx),len(astero_stars_Cannon_idx),len(astero_idx_test))
+print(len(astero_idx),'=',len(astero_stars_Cannon_idx),'+',len(astero_idx_test))
 
 b1,b2,b3,b4,b5,b6=[],[],[],[],[],[]
 for i in pande_idx_test:
@@ -164,12 +164,20 @@ for idx in astero_stars_test_idx:
 
 # Create one common training sample:
 train_sample=pande_stars_Cannon_train+astero_stars_Cannon_train
-print(len(train_sample))
+print('# of training stars',len(train_sample))
 
 # Create one common testing sample:
 test_sample=pande_stars_Cannon_test+astero_stars_Cannon_test
-print(len(test_sample))
+print('# of testing stars',len(test_sample))
 
+test_logg=[float(i[1]) for i in test_sample]
+train_logg=[float(i[1]) for i in train_sample]
+
+# Visualize distribution of logg for testing and training stars:
+plt.hist(test_logg,label='Test')
+plt.hist(train_logg,label='Train')
+plt.legend()
+plt.show(False)
 
 # Double check the stars in both training and testing are not overlapping:
 training_kics=[]
@@ -185,6 +193,7 @@ for i in range(0,len(test_sample)):
 	kic=re.search('kplr(.*)-', file).group(1)
 	kic=int(kic.lstrip('0'))
 	testing_kics.append(kic)
+
 
 common_kics=list(set(training_kics) & set(testing_kics))
 print('# of stars common in train/test samples:',len(common_kics))
@@ -203,9 +212,6 @@ ts=[]
 for i in new_test_sample:
 	ts.append(test_sample[i])
 
-print(len(test_sample))
-print(len(new_test_sample))
-# print(new_test_sample)
 test_sample=ts
 
 # Save testing and training samples:

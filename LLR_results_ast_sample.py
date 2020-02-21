@@ -405,9 +405,9 @@ def paper_plot(keep,true,labelm1,labelm2,logg_pos_err,logg_neg_err):
 	print(ba,rmsa,stda)
 	text_font={'color':'red','weight':'heavy'}
 	plt.tight_layout()
-	plt.savefig('astero_final_residual.pdf',dpi=50)
+	#plt.savefig('astero_final_residual.pdf',dpi=50)
 	plt.show(False)
-	exit()
+	#exit()
 
 
 def check_models(keep,badidx,true,labelm1,labelm2,models,alldata,allfiles):
@@ -533,7 +533,8 @@ def main(start):
 	print('=== after cleaning:',len(keep))
 	print('=== outliers (diff>0.6):',len(badidx))
 	print('=== fraction of outliers:',len(badidx)/len(keep))
-	
+	np.save('index_of_good_stars.npy',keep)
+	exit()
 	logg_pos_err,logg_neg_err=get_logg_error(keep,all_files)
 	paper_plot(keep,testlabels,labels_m1,labels_m2,logg_pos_err,logg_neg_err)
 	exit()
