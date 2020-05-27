@@ -2,6 +2,7 @@
 
 import numpy as np
 import time, re
+import csv
 import pandas as pd
 from matplotlib import rc
 import matplotlib.ticker as ticker
@@ -20,8 +21,8 @@ from astropy.stats import mad_std
 from scipy.stats import gaussian_kde
 
 
-plt.rc('font', family='serif')
-plt.rc('text', usetex=True)
+# plt.rc('font', family='serif')
+# plt.rc('text', usetex=True)
 plt.rcParams['axes.linewidth'] = 1.
 
 gaia     =ascii.read('/Users/maryumsayeed/Desktop/HuberNess/mlearning/powerspectrum/DR2PapTable1.txt',delimiter='&')
@@ -221,7 +222,8 @@ def init_plots(true,labelm1,labelm2):
 	bias,rms=returnscatter(true-labelm2)
 	print('Model 2 --','RMS:',rms,'Bias:',bias)
 	plt.legend()
-	plt.show()
+	plt.show(False)
+	print('nothing')
     
 
 def get_avg_psd(all_files,all_data):
@@ -303,17 +305,19 @@ def remove_high_chi2(chi2_vals):
 	plt.xlim([0,500])
 	plt.show(False)
 	plt.clf()
-	cutoff=300
+	cutoff=500
 	keep=np.where(chi2_vals<cutoff)[0]
 	print('-- Stars with chi2 < {}:'.format(cutoff),len(keep))
+	print('-- Stars with chi2 > {}:'.format(cutoff),len(np.where(chi2_vals>cutoff)[0]))
 	return keep
 
 
 def final_result(keep1,keep2,true,labelm1,labelm2):
 	keep=list(set(keep1) & set(keep2))
 	print('-- Final stars:',len(keep))
-	check_idx=np.where(abs(true[keep]-labelm1[keep])>0.6)[0]
-	#plt.figure(figsize=(10,5))
+	offset=0.5
+	check_idx=np.where(abs(true[keep]-labelm1[keep])>offset)[0]
+	plt.figure(figsize=(10,5))
 	plt.subplot(121)
 	plt.plot(true,true,c='k',linestyle='dashed')
 	plt.scatter(true[keep],labelm1[keep],facecolors='grey', edgecolors='k',label='Model 1 ({})'.format(len(true)),s=10)
@@ -337,16 +341,77 @@ def final_result(keep1,keep2,true,labelm1,labelm2):
 	plt.show(False)
 	plt.clf()
 	keep=np.array(keep)
-	investigate=keep[check_idx]
-	return keep,check_idx
+	outliers=keep[check_idx]
+	return keep,check_idx,offset,outliers
 
+def investigate_outliers(outliers,testfiles,true,labelm1):
+	bad_stars_lum=[]
+	bad_stars_kp =[]
+	bad_stars_teff=[]
+	bad_stars_rad=[]
+	bad_stars_true_logg=[]
+	bad_stars_pred_logg=[]
+	print('=====',len(outliers))
+
+	for star in outliers:
+	    file=testfiles[star][0:-3]
+	    #print(star,file)
+	    kic=re.search('kplr(.*)-', file).group(1)
+	    kic=int(kic.lstrip('0'))
+	    kp =allkps[kp_kics.index(kic)]
+	    kic_idx=np.where(gaia['KIC']==kic)
+	    t=gaia['teff'][kic_idx][0]
+	    r=gaia['rad'][kic_idx][0]
+	    l=r**2.*(t/5777.)**4.
+	    tr=true[star]
+	    pr=labelm1[star]
+	    bad_stars_lum.append(l)
+	    bad_stars_kp.append(kp)
+	    bad_stars_teff.append(t)
+	    bad_stars_rad.append(r)
+	    bad_stars_true_logg.append(tr)
+	    bad_stars_pred_logg.append(pr)
+	    #print(kic)
+
+	fig=plt.figure(figsize=(8,8))
+	plt.rc('xtick', labelsize=15)
+	plt.rc('ytick', labelsize=15)
+
+	plt.subplot(321)
+	plt.hist(bad_stars_lum,bins=np.arange(0,24,2))
+	plt.xlabel('Luminosity (L$_{\\odot}$)',fontsize=15)
+	plt.subplot(322)
+	plt.hist(bad_stars_kp,bins=np.arange(10,14,0.5))
+	plt.xlabel('Kp',fontsize=15)
+	plt.subplot(323)
+	plt.hist(bad_stars_teff)
+	plt.xlabel(r'T$_\mathrm{eff}$ (K)',fontsize=15)
+	plt.subplot(324)
+	plt.hist(bad_stars_rad)
+	plt.xlabel('Radius (R$_{\\odot}$)',fontsize=15)
+	plt.subplot(325)
+	plt.hist(bad_stars_true_logg,bins=np.arange(3.,4.8,0.2))
+	plt.xlabel('True Logg (dex)',fontsize=15)
+	plt.subplot(326)
+	plt.hist(bad_stars_pred_logg,bins=np.arange(2.6,4.8,0.2))
+	plt.xlabel('Predicted Logg (dex)',fontsize=15)
+	
+	fig.add_subplot(111, frameon=False)
+	# hide tick and tick label of the big axis
+	plt.tick_params(labelcolor='none', top=False, bottom=False, left=False, right=False)
+	plt.title("Gaia Outliers ($\Delta \log g > 0.5$)",fontsize=15)
+	plt.ylabel("Counts",fontsize=15)
+
+	plt.tight_layout()
+
+	#plt.savefig('/Users/maryumsayeed/Desktop/HuberNess/iPoster/pande_outliers.pdf',dpi=50)
+	plt.show(False)
 
 def paper_plot(keep,true,labelm1,labelm2,logg_pos_err,logg_neg_err):
 	plt.figure(figsize=(6,8))
 	labelm1=np.array(labelm1)
 	ba,rmsa=returnscatter(labelm1[keep]-true[keep])
 	ms=20
-
 	# AFTER PLOT:
 	gs = gridspec.GridSpec(4, 4,hspace=0)
 
@@ -360,8 +425,8 @@ def paper_plot(keep,true,labelm1,labelm2,logg_pos_err,logg_neg_err):
 	ax1.set_ylabel('Inferred Logg (dex)',fontsize=20)
 	ax1.set_xlim([2.,4.8])
 	ax1.set_ylim([2.,4.8])
-	ax1.text(2.1,4.6,'RMS: '+str(round(rmsa,2)),fontsize=30,ha='left',va='center')
-	ax1.text(2.1,4.4,'Bias: '+str(round(ba,4)),fontsize=30,ha='left',va='center')
+	ax1.text(2.1,4.6,'RMS: '+str(round(rmsa,2)),fontsize=20,ha='left',va='center')
+	ax1.text(2.1,4.4,'Bias: '+str(round(ba,2)),fontsize=20,ha='left',va='center')
 
 
 	ax2 = plt.subplot(gs[3:4, 0:4])
@@ -372,7 +437,7 @@ def paper_plot(keep,true,labelm1,labelm2,logg_pos_err,logg_neg_err):
 	ax2.minorticks_off()
 	plt.xticks(fontsize=20)
 	plt.yticks([-1,0,1], [-1,0,1], fontsize=20)
-	ax2.tick_params(which='major',axis='y',pad=1)
+	ax2.tick_params(which='major',axis='y',pad=15)
 	ax2.set_xlim([2.,4.8])
 	
 	stda=mad_std(labelm1[keep]-true[keep])
@@ -380,21 +445,24 @@ def paper_plot(keep,true,labelm1,labelm2,logg_pos_err,logg_neg_err):
 	print(ba,rmsa,stda)
 	text_font={'color':'red','weight':'heavy'}
 	plt.tight_layout()
-	plt.savefig('pande_final_residual.pdf',dpi=50)
-	plt.show(False)
-	exit()
+	#plt.savefig('/Users/maryumsayeed/Desktop/HuberNess/iPoster/pande_final_residual.pdf',dpi=50)
+	plt.show(True)
 
 
 def check_models(keep,badidx,true,labelm1,labelm2,models,alldata,allfiles):
+	plt.clf()
+	plt.ion()
 	plt.plot(true,true)
 	plt.scatter(true[keep],labelm2[keep])
 	plt.scatter(true[keep][badidx],labelm2[keep][badidx],c='r')
-	plt.show()
+	plt.show(False)
 	alldata=np.array(alldata)[keep]
 	models=models[keep]
-	for star in badidx:
+	print(len(keep),len(badidx),len(allfiles))
+	allkics=[]
+	for star in keep:
 		file=allfiles[keep][star][0:-3]
-		print(file)
+		#print(file)
 		timeseries,time,flux,f,amp,pssm,pssm_wnoise=getps(file,1)
 		time_1,flux_1,time_2,flux_2,time_3,flux_3=timeseries
 		kic=file.split('/')[-1].split('-')[0].split('kplr')[-1]
@@ -404,6 +472,7 @@ def check_models(keep,badidx,true,labelm1,labelm2,models,alldata,allfiles):
 		r=gaia['rad'][idx][0]
 		l=r**2.*(t/5777.)**4.
 		kp =allkps[kp_kics.index(kic)]
+		allkics.append(kic)
 		test =10.**alldata[star,:] #compare log(PSD) values
 		model=10.**models[star] #compare log(PSD) values
 		plt.figure(figsize=(15,10))
@@ -446,12 +515,15 @@ def check_models(keep,badidx,true,labelm1,labelm2,models,alldata,allfiles):
 		plt.scatter(true[keep][star],labelm2[keep][star],c='r',s=50)
 		plt.tight_layout()
 		#plt.savefig('jan2020_pande_LLR4/{}.pdf'.format(kic),dpi=50)
-		#plt.show()
-		#plt.clf()
-		
+		plt.show(False)
+		plt.clf()
+	
+	print('done')
+	exit()
 	#plt.show(False)
 
-def get_mass_error(radii,mass,logg,rad_pos_err,rad_neg_err,logg_pos_err,logg_neg_err):
+def get_mass_error(radii,mass,infer_logg,rad_pos_err,rad_neg_err,logg_pos_err,logg_neg_err):
+	logg=infer_logg
 	abs_pos_err=(((logg_pos_err/logg)**2.+((rad_pos_err*2)/(radii**2.))**2.)**0.5)
 	abs_neg_err=(((logg_neg_err/logg)**2.+((rad_neg_err*2)/(radii**2.))**2.)**0.5)
 	rel_pos_err=abs_pos_err*mass
@@ -459,31 +531,40 @@ def get_mass_error(radii,mass,logg,rad_pos_err,rad_neg_err,logg_pos_err,logg_neg
 	return rel_pos_err,rel_neg_err
 
 def get_mass(keep,true,labelm1,labelm2,allfiles):
+	allkics=np.zeros(len(keep))
+	allteffs=np.zeros(len(keep))
 	radii=np.zeros(len(keep))
 	mass =np.zeros(len(keep))
+	true_logg=np.zeros(len(keep))
+	infer_logg=np.zeros(len(keep))
 	rad_pos_err=np.zeros(len(keep))
 	rad_neg_err=np.zeros(len(keep))
 	logg_pos_err=np.zeros(len(keep))
 	logg_neg_err=np.zeros(len(keep))
-	grav_const  =6.67*10.**(-8.)   #cm^3*g^-1*s^-2
-	solar_radius=6.956*10.**(10.)  #cm
-	solar_mass  =1.99*10.**33.     #g
+	grav_const  =6.67e-8   #cm^3*g^-1*s^-2
+	solar_radius=6.956e10  #cm
+	solar_mass  =1.99e33     #g
+	print('Calculating mass...')
+
 	for i in range(0,len(keep)):
 		star=keep[i]
-		file=allfiles[i]
+		file=allfiles[keep][i]
 		kic=re.search('kplr(.*)-', file).group(1)
 		kic=int(kic.lstrip('0'))
 		idx=np.where(gaia['KIC']==kic)[0]
+		t     =gaia['teff'][idx][0]
 		r     =gaia['rad'][idx][0]
 		r_errp=gaia['radep'][idx][0]
 		r_errn=gaia['radem'][idx][0]
 		row   =kepler_catalogue.loc[kepler_catalogue['KIC']==kic]
-		logg  =row['iso_logg'].item()
+		tlogg  =row['iso_logg'].item()
 		logg_errp=row['iso_logg_err1']
 		logg_errn=row['iso_logg_err2']	
-
-		logg=labelm2[star]
-		g=10.**logg              #cm/s^2
+		true_logg[i]=tlogg
+		
+		ilogg=labelm2[keep][i]
+		infer_logg[i]=ilogg
+		g=10.**ilogg              #cm/s^2
 		m=g*((r*solar_radius)**2.)/grav_const
 		mass[i]  =m/solar_mass
 		radii[i] =r
@@ -491,13 +572,40 @@ def get_mass(keep,true,labelm1,labelm2,allfiles):
 		rad_neg_err[i]=r_errn
 		logg_pos_err[i]=logg_errp
 		logg_neg_err[i]=logg_errn
-	
-	logg=true[keep]
-	return radii,mass,logg,rad_pos_err,rad_neg_err,logg_pos_err,logg_neg_err
+		allkics[i]=kic
+		allteffs[i]=t
+		
+	return [allkics,allteffs],radii,mass,true_logg,infer_logg,rad_pos_err,rad_neg_err,logg_pos_err,logg_neg_err
 
-def get_mass_radius_plot(radii,mass,logg,rad_pos_err,rad_neg_err,logg_pos_err,logg_neg_err):
+def get_table(oparams,radii,mass,true,infer_logg,rad_pos_err,rad_neg_err,logg_pos_err,logg_neg_err):
+	logg=infer_logg
+	kics,teffs=oparams
+	kics,teffs=[int(i) for i in kics],[int(i) for i in teffs]
 	mass_errp,mass_errn=get_mass_error(radii,mass,logg,rad_pos_err,rad_neg_err,logg_pos_err,logg_neg_err)
-	
+	header = ['KICID', 'Teff', 'Radius','Radp','Radn','True_Logg','Loggp','Loggn','Inferred_Logg','Mass','Massp','Massn'] 
+	with open('Pande_Final_Catalogue_may27.txt', 'w') as f:
+		w = csv.writer(f, delimiter=';')
+		w.writerow(header)
+		for row in zip(kics,teffs,radii,rad_pos_err,rad_neg_err,true,logg_pos_err,logg_neg_err,logg,mass,mass_errp,mass_errn):
+			w.writerow(row)
+	df = pd.read_csv('Pande_Final_Catalogue_may27.txt',index_col=False,delimiter=';')
+	df.sort_values(by=['KICID'], inplace=True)
+	#print(df)
+	HEADER=';'.join(header)
+	FMT=['%1.2f' for i in range(0,len(header))]
+	FMT[0]='%i'
+	FMT[1]='%i'
+	# np.savetxt('output2_may27.txt', df.values,delimiter=';',fmt=FMT,header=HEADER)
+	df_short=df.head(10)
+	FMT=['%s' for i in range(0,len(header)-1)]
+	FMT.insert(0,'%i')
+	print(FMT)
+	# np.savetxt('Pande_short_may27.txt', df_short.values,delimiter=' & ',fmt=FMT,newline=' \\\\\n',header=HEADER)
+	exit()
+
+def get_mass_radius_plot(kics,radii,mass,logg,true_logg,rad_pos_err,rad_neg_err,logg_pos_err,logg_neg_err):
+	mass_errp,mass_errn=get_mass_error(radii,mass,logg,rad_pos_err,rad_neg_err,logg_pos_err,logg_neg_err)
+
 	# definitions for the axes
 	left, width = 0.1, 0.65
 	bottom, height = 0.1, 0.6
@@ -508,7 +616,7 @@ def get_mass_radius_plot(radii,mass,logg,rad_pos_err,rad_neg_err,logg_pos_err,lo
 	rect_histy = [left + width + spacing, bottom, 0.2, height]
 
 	# start with a rectangular Figure
-	plt.figure(figsize=(12, 12))
+	plt.figure(figsize=(10, 10))
 	ax_scatter = plt.axes(rect_scatter)
 	ax_scatter.tick_params(direction='in', top=True, right=True)
 	ax_histx = plt.axes(rect_histx)
@@ -526,7 +634,7 @@ def get_mass_radius_plot(radii,mass,logg,rad_pos_err,rad_neg_err,logg_pos_err,lo
 	# Scatter plot
 	ax_scatter.errorbar(mass,radii,ms=10,fmt='o',xerr=[mass_errn,mass_errp],yerr=[rad_neg_err,rad_pos_err],markerfacecolor='none',markeredgecolor='none',ecolor='lightgrey')
 	ax_scatter.scatter(mass,radii,s=20,c=z,zorder=10)
-	ax_scatter.set_xlim([0,7])
+	ax_scatter.set_xlim([0,16])
 	ax_scatter.set_ylim([0.5,5])
 	rdot=' R$_{\\odot}$'
 	mdot='M$_{\\odot}$'
@@ -544,15 +652,29 @@ def get_mass_radius_plot(radii,mass,logg,rad_pos_err,rad_neg_err,logg_pos_err,lo
 
 	# definitions for the axes
 	binwidth = 0.25
-	ax_scatter.set_xlim((4,0))
+	ax_scatter.set_xlim((5,0))
 	ax_scatter.set_ylim((0.5,5))
 
-	mass_bins  =np.arange(0,4,0.1)
-	radius_bins=np.arange(0.5,10,0.1)
+	mass_bins  =np.arange(0,5,0.1)
+	radius_bins=np.arange(0.5,5,0.05)
 	lw=2
 
-	ax_histx.hist(mass, bins=mass_bins,edgecolor="k",facecolor='lightgrey',linewidth=lw,histtype=u'step')
-	ax_histy.hist(radii, bins=radius_bins, orientation='horizontal',edgecolor="k",facecolor='lightgrey',histtype=u'step',linewidth=lw)
+	xm,ym,_=ax_histx.hist(mass, bins=mass_bins,edgecolor="k",facecolor='lightgrey',linewidth=lw,histtype=u'step')
+	xr,yr,_=ax_histy.hist(radii, bins=radius_bins, orientation='horizontal',edgecolor="k",facecolor='lightgrey',histtype=u'step',linewidth=lw)
+
+	# Find peak of histograms:
+	mass_peak   =ym[np.argmax(xm)]
+	radius_peak =yr[np.argmax(xr)]
+
+
+	ax_histx.axvline(mass_peak,c='#404788FF',linewidth=2,linestyle='dashed')
+	ax_histy.axhline(radius_peak,c='#404788FF',linewidth=2,linestyle='dashed')
+
+	mass_string  = '    {} {}'.format(str(round(mass_peak,1)),mdot)
+	radius_string= '    {} {}'.format(str(round(radius_peak,1)),rdot)
+	ax_histx.text(mass_peak,np.max(xm)-50,s=mass_string,ha='left',fontsize=20)
+	ax_histy.text(101,radius_peak+0.05,s=radius_string,ha='left',fontsize=20)
+
 
 	ax_histx.set_xlim(ax_scatter.get_xlim())
 	ax_histy.set_ylim(ax_scatter.get_ylim())
@@ -580,6 +702,7 @@ def get_mass_radius_plot(radii,mass,logg,rad_pos_err,rad_neg_err,logg_pos_err,lo
 	                bottom='False', # turn off bottom ticks
 	                labelsize=20)
 	ax_histx.tick_params(which='minor',bottom='off',left='off')
+	ax_histx.set_yticks([100,200], [100,200])
 
 	# Radius Hist:
 	ax_histy.minorticks_on()
@@ -596,9 +719,24 @@ def get_mass_radius_plot(radii,mass,logg,rad_pos_err,rad_neg_err,logg_pos_err,lo
 	ax_histy.tick_params(which='minor',bottom='False',left='False')
 	
 	plt.tight_layout()
-	#plt.savefig('mass_radius.pdf',dpi=100)
-	
+	plt.savefig('mass_radius_may27.pdf',dpi=100)
+	plt.show(False)
+	unc_below1=len(np.where((mass_errp/mass)<0.1)[0])/len(mass)
+	unc_below2=len(np.where((mass_errp/mass)<0.15)[0])/len(mass)
+	frac_error=np.median((mass_errp/mass))
+	print('Mass stats:')
+	print('---Max mass:',np.max(mass),'Min mass:',np.min(mass))
+	print('---Max radius:',np.max(radii),'Min radius:',np.min(radii))
+	print('---Frac. of stars with frac uncertainty below 0.1:',unc_below1)
+	print('---Frac. of stars with frac uncertainty below 0.15:',unc_below2)
+	print('---Median of frac. uncertainty:',frac_error)
+	print('---Max frac. error',np.max(mass_errp/mass))
+	print('---Min frac. error',np.min(mass_errp/mass))
 
+	mass_outside=np.where(np.logical_or(mass>16, mass<0))[0]
+	radius_outside=np.where(np.logical_or(radii>5, radii<0.5))[0]
+	total_outside=len(mass_outside)+len(radius_outside)
+	print('---Total # of stars outside mass-radius plot',total_outside)
     # Error Analysis:\n",
     # plt.scatter(mass,radius,s=15,c=radius_err_pos,cmap='Paired',zorder=10)\n",
 
@@ -623,22 +761,28 @@ def main(start):
 	all_labels,all_data,all_files=all_labels[start:start+end],all_data[start:start+end],all_files[start:start+end]
 	
 	#init_plots(testlabels,labels_m1,labels_m2)
-	radii,avg_psd=get_avg_psd(all_files,all_data)
-	keep_idx_1   =fit_power_radius(radii,avg_psd)
-	keep_idx_2   =remove_high_chi2(chi2_vals)
-	keep,badidx  =final_result(keep_idx_1,keep_idx_2,testlabels,labels_m1,labels_m2)
+	radii,avg_psd     =get_avg_psd(all_files,all_data)
+	keep_idx_1        =fit_power_radius(radii,avg_psd)
+	keep_idx_2        =remove_high_chi2(chi2_vals)
+	keep,badidx,diff,outliers  =final_result(keep_idx_1,keep_idx_2,testlabels,labels_m1,labels_m2)
+	investigate_outliers(outliers,all_files,testlabels,labels_m1)
 
-	#check_models(keep,badidx,testlabels,labels_m1,labels_m2,spectra_m1,all_data,all_files)
+	print(np.max(testlabels[keep]))
+	print(np.min(testlabels[keep]))
+	# check_models(keep,badidx,testlabels,labels_m1,labels_m2,spectra_m1,all_data,all_files)
+	# exit()
 	print('=== original:',len(radii))
 	print('=== after cleaning:',len(keep))
-	print('=== outliers:',len(badidx))
+	print('=== outliers (diff>{}):'.format(diff),len(badidx))
 	print('=== fraction of outliers:',len(badidx)/len(keep))
 	
-	radii,mass,logg,rad_pos_err,rad_neg_err,logg_pos_err,logg_neg_err=get_mass(keep,testlabels,labels_m1,labels_m2,all_files)
-	paper_plot(keep,testlabels,labels_m1,labels_m2,logg_pos_err,logg_neg_err)
+	oparams,radii,mass,true_logg,infer_logg,rad_pos_err,rad_neg_err,logg_pos_err,logg_neg_err=get_mass(keep,testlabels,labels_m1,labels_m2,all_files)
+	# exit()
+	#get_table(oparams,radii,mass,true_logg,infer_logg,rad_pos_err,rad_neg_err,logg_pos_err,logg_neg_err)
 	exit()
-	get_mass_radius_plot(radii,mass,logg,rad_pos_err,rad_neg_err,logg_pos_err,logg_neg_err)
-	
+	#paper_plot(keep,testlabels,labels_m1,labels_m2,logg_pos_err,logg_neg_err)
+	get_mass_radius_plot(oparams[0],radii,mass,infer_logg,true_logg,rad_pos_err,rad_neg_err,logg_pos_err,logg_neg_err)
+	exit()
 
 
 
