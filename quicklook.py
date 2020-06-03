@@ -7,8 +7,8 @@ import fnmatch
 from astropy.convolution import convolve, Gaussian1DKernel, Box1DKernel
 from astropy.stats import LombScargle
 from scipy.signal import savgol_filter as savgol
+from astropy.io import fits
 import glob, re
-import pyfits
 from astropy.io import ascii
 # subroutine to perform rough sigma clipping
  
@@ -84,20 +84,16 @@ if __name__ == '__main__':
     logg=np.zeros(len(files))
     kpmags=np.zeros(len(files))'''
      
-     
-    #gaia=ascii.read('DR2PapTable1.txt',delimiter='&')
     #test=np.loadtxt('/Users/maryumsayeed/Desktop/HuberNess/mlearning/powerspectrum/inspect.txt',usecols=0,dtype='str')
     #teststars=[i[0:-3] for i in test]
     #print('# of stars to check:',len(teststars))
-    # check=[10480536, 5360999, 6536034, 11953764, 8540842, 3233199, 6140420, 3239929, 6694427, 10394772, 1872749, 8057568, 7349880]
-
     for i in range(0,len(files)):
         f=files[i]
         kicid=int(files[i].split('/')[-1].split('-')[0].split('kplr')[-1].lstrip('0'))
         try:
-            print(i,kicid,'h')
+            print(i,kicid,f,'h')
             # exit()
-            data=pyfits.open(files[i])
+            data=fits.open(files[i])
             head=data[0].data
             dat=data[1].data
             time=dat['TIME']
@@ -149,20 +145,29 @@ if __name__ == '__main__':
             good=np.where(qual == 0)[0]
             time=time[good]
             flux=flux[good]
+
+            # Use first third of sample:
+            third=np.arange(0,int(len(time)/3),1)
+
+            time=time[third]
+            flux=flux[third]
+
             # plot the light curve
-            plt.ion()
-            plt.clf()
-            plt.subplot(3,1,1)
-            plt.plot(time,flux)
-            plt.xlabel('Time (Days)')
-            plt.ylabel('Flux (counts)')
+            #plt.ion()
+            #plt.clf()
+            # plt.subplot(3,1,1)
+            # plt.plot(time,flux)
+            # plt.xlabel('Time (Days)')
+            # plt.ylabel('Flux (counts)')
 
             # sigma-clip outliers from the light curve and overplot it
             res=sigclip(time,flux,50,3)
-            good = np.where(res == 1)[0]
+            good=np.where(res == 1)[0]
             time=time[good]
             flux=flux[good]
-            plt.plot(time,flux)
+            
+
+            # plt.plot(time,flux)
 
             # next, run a filter through the data to remove long-periodic (low frequency) variations
              
@@ -171,7 +176,7 @@ if __name__ == '__main__':
             box_kernel = Box1DKernel(boxsize)
             smoothed_flux = savgol(flux,int(boxsize)-1,1,mode='mirror')
             # overplot this smoothed version, and then divide the light curve through it
-            plt.plot(time,smoothed_flux)
+            # plt.plot(time,smoothed_flux)
 
             flux=flux/(smoothed_flux)
              
@@ -179,10 +184,10 @@ if __name__ == '__main__':
 
 
             # plot the filtered light curve
-            plt.subplot(3,1,2)
-            plt.plot(time,flux)
-            plt.xlabel('Time (Days)')
-            plt.ylabel('Relative flux')
+            # plt.subplot(3,1,2)
+            # plt.plot(time,flux)
+            # plt.xlabel('Time (Days)')
+            # plt.ylabel('Relative flux')
 
             # now let's calculate the fourier transform. the nyquist frequency is:
             nyq=1./(30./60./24.)
@@ -198,7 +203,8 @@ if __name__ == '__main__':
             #freq, amp = LombScargle(time,flux).autopower(method='fast',samples_per_peak=10,maximum_frequency=nyq)
              
             amp = LombScargle(time,flux).power(freq)
-
+            
+            #print(len(time),len(flux),len(freq))
             # unit conversions
             freq = 1000.*freq/86.4
             bin = freq[1]-freq[0]
@@ -223,9 +229,12 @@ if __name__ == '__main__':
 
             um=np.where(freq > 10.)[0]
             n=files[i].split('/')
-
-            ascii.write([freq[um],wnpssm[um]],files[i]+'.ps',names=['freq','power'],overwrite=True)
             
+            # Save frequency & power spectrum arrays:
+            newname=files[i].replace('large_train_sample','large_train_sample_third')
+            #ascii.write([freq[um],wnpssm[um]],files[i]+'.ps',names=['freq','power'],overwrite=True)
+            ascii.write([freq[um],wnpssm[um]],newname+'.ps',names=['freq','power'],overwrite=True)
+            #exit()
             # try:
             #     b = ascii.read(f+'.ps')
             # except error as e:
@@ -237,23 +246,23 @@ if __name__ == '__main__':
             total=freq[(freq>10.) & (freq<30.)] 
             satisfies=(pssm[(freq>10.) & (freq<30.) & (pssm>100.)])
             percent=len(satisfies)/len(total)*100.
-            plt.subplot(3,1,3)
-            plt.loglog(freq,amp,c='grey')
-            plt.loglog(freq,amp_wn,c='green')
-            plt.loglog(freq,pssm,c='k')
-            plt.loglog(freq,wnpssm,c='r',linestyle='dashed')
+            # plt.subplot(3,1,3)
+            # plt.loglog(freq,amp,c='grey')
+            # plt.loglog(freq,amp_wn,c='green')
+            # plt.loglog(freq,pssm,c='k')
+            # plt.loglog(freq,wnpssm,c='r',linestyle='dashed')
             #plt.loglog(psfreq,psflux,c='cyan',linestyle='dashed',label='saved')
 
-            plt.xlabel('Frequency ($\mu$Hz)')
-            plt.ylabel('Power Density')
-            plt.xlim([10.,300])
-            plt.ylim([0.01,1e8])
-            plt.title('teff='+str(teffs[i])+' lum='+str(lums[i])+' kicid:'+str(kicid))
-            plt.text(12,10**6.,s=str(round(percent,2)))
+            # plt.xlabel('Frequency ($\mu$Hz)')
+            # plt.ylabel('Power Density')
+            # plt.xlim([10.,300])
+            # plt.ylim([0.01,1e6])
+            # plt.title('teff='+str(teffs[i])+' lum='+str(lums[i])+' kicid:'+str(kicid))
+            # plt.text(12,10**6.,s=str(round(percent,2)))
             # plt.legend()
-            plt.tight_layout()
-            plt.draw()
-            #plt.show()
+            # plt.tight_layout()
+            #plt.draw()
+            # plt.show(False)
             # exit()
             #input(':')
             #pdb.set_trace()
@@ -261,5 +270,6 @@ if __name__ == '__main__':
         except Exception as e:
             print(e)
             continue
+            # exit()
         #ascii.write([kics[um],teffs[um],lums[um]],d+'labels_0.5d_1muHz.txt',names=['kic','teff','lum'],overwrite=True)
         

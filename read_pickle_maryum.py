@@ -8,8 +8,9 @@ from astropy.stats import mad_std
 from sklearn.metrics import r2_score
 import matplotlib.image as mpimg
 from scipy.stats import chisquare
+import matplotlib.gridspec as gridspec
 
-rc('text', usetex=True)
+# rc('text', usetex=True)
 dd='/Users/maryumsayeed/Desktop/HuberNess/mlearning/powerspectrum/'
 #pf=open(dd+'testmetaall_lum.pickle','rb') 
 #testmetaall,truemetaall=pickle.load(pf)
@@ -37,12 +38,15 @@ plt.rcParams['ytick.major.width'] = 3
 plt.rcParams['ytick.minor.size'] = 5
 plt.rcParams['ytick.minor.width'] = 3
 plt.rcParams['axes.linewidth'] = 1
-plt.rcParams['font.size']=14
+plt.rcParams['font.size']=15
 plt.rcParams['mathtext.default']='regular'
 plt.rcParams['xtick.major.pad']='3'
 plt.rcParams['ytick.major.pad']='4'
-plt.rc('font', family='serif')
-plt.rc('text', usetex=True)
+# plt.rc('font', family='serif')
+# plt.rc('text', usetex=True)
+plt.rc('xtick', labelsize=15)
+plt.rc('ytick', labelsize=15)
+
 
 #true=truemetaall[:,1]
 #infer=testmetaall[:,1]
@@ -60,6 +64,14 @@ if q is True:
 	std=mad_std(infer-true)
 	r2=r2_score(true,infer)
 	bias,rms=returnscatter(true-infer)
+	plt.rc('font', size=15)                  # controls default text sizes
+	plt.rc('axes', titlesize=15)             # fontsize of the axes title
+	plt.rc('axes', labelsize=15)             # fontsize of the x and y labels
+	plt.rc('axes', labelpad=3)               # padding of x and y labels
+	plt.rc('xtick', labelsize=15)            # fontsize of the tick labels
+	plt.rc('ytick', labelsize=15)            # fontsize of the tick labels
+	plt.rc('axes', linewidth=1)  
+	plt.rc('legend', fontsize=15)
 
 	# a=open(dd+'model_real_unweighted.pickle','rb')
 	# model=pickle.load(a)
@@ -77,23 +89,74 @@ if q is True:
 	#TITLE='Bias: {} RMS: {} ({})'.format(round(bias,2),round(rms,2),len(infer))
 
 	#plt.title(TITLE)
-	plt.scatter(true,infer,facecolors='grey', edgecolors='k',s=10)
-	plt.plot(true,true,linestyle='dashed',c='k')
-	plt.text(2,4.3,'RMS = '+str(round(rms,2)), fontsize=15, ha='left',va='bottom')
-	plt.text(2,4.,'Bias = '+str(round(bias,2)), fontsize=15, ha='left',va='bottom')
-	plt.xlabel('True (dex)',fontsize=20)
-	plt.ylabel('Inferred (dex)',fontsize=20)
+	plt.figure(figsize=(6,8))
+	gs = gridspec.GridSpec(4, 4,hspace=0)
+	ax1 = plt.subplot(gs[0:3, 0:4])
+	ax1.plot(true,true,c='k',linestyle='dashed')
+	ax1.scatter(true,infer,facecolors='grey', edgecolors='k',s=10)
+	ax1.minorticks_off()
+	locs, labels = plt.yticks()
+	newlabels=[2.0,2.5,3.0,3.5,4.0,4.5,5.0]
+	plt.yticks(newlabels, newlabels)
+	# ax1.set_xticks([])
+	ax1.set_xticklabels([]*len(newlabels))
+	plt.minorticks_on()
+	plt.yticks(newlabels,newlabels)
+	plt.xticks([])
+	ax1.set_ylabel('Inferred Logg [dex]')
+	ax1.set_xlim([1.9,4.7])
+	ax1.set_ylim([1.9,4.7])
+	ax1.text(2.,4.5,'RMS: '+str(round(rms,2)),fontsize=18,ha='left',va='center')
+	ax1.text(2.,4.3,'Bias: '+str(round(bias,2)),fontsize=18,ha='left',va='center')
+
+
+	ax2 = plt.subplot(gs[3:4, 0:4])
+	ax2.scatter(true,true-infer,edgecolor='k',facecolor='grey',s=20)
+	ax2.axhline(0,c='k',linestyle='dashed')
+	ax2.set_xlabel('True Logg [dex]')
+	ax2.set_ylabel('True-Inferred Logg [dex]')
+	plt.minorticks_on()
+	plt.xticks(fontsize=20)
+	plt.yticks([-1,0,1], [-1,0,1])
+	ax2.tick_params(which='major',axis='y',pad=12)
+	ax2.set_xlim([1.9,4.7])
+
+	mjlength=5
+	mnlength=3
+	ax1.tick_params(which='both', # Options for both major and minor ticks
+	                top='False', # turn off top ticks
+	                left='True', # turn off left ticks
+	                right='False',  # turn off right ticks
+	                bottom='True',# turn off bottom ticks)
+	                length=mjlength,
+	                width=1)
+	ax1.tick_params(which='minor',length=mnlength) 
+	ax2.tick_params(which='both', top='True', left='True', bottom='True',length=mjlength,width=1) 
+	ax2.tick_params(which='minor',axis='y',length=mnlength) 
+
+	mjlength=7
+	mnlength=4
+	ax2.tick_params(which='major',axis='x',direction='inout',length=mjlength) 
+	ax2.tick_params(which='minor',axis='x',direction='inout',length=mnlength)
+	
+
+	# plt.scatter(true,infer,facecolors='lightgrey', edgecolors='k',s=10)
+	# plt.plot(true,true,linestyle='dashed',c='k')
+	# plt.text(2,4.3,'RMS = {} dex'.format(str(round(rms,2))), fontsize=15, ha='left',va='bottom')
+	# plt.text(2,4.1,'Bias = {} dex'.format(str(round(bias,2))), fontsize=15, ha='left',va='bottom')
+	# plt.xlabel('True Logg [dex]',fontsize=20)
+	# plt.ylabel('Inferred Logg [dex]',fontsize=20)
 
 	below=np.where(true<=3.5)[0]
 	bias_below,rms_below=returnscatter(true[below]-infer[below])
 	above=np.where(true>3.5)[0]
 	bias_above,rms_above=returnscatter(true[above]-infer[above])
-	plt.text(2.8,2.3,r'$\log g < 3.5$: RMS = '+str(round(rms_below,2))+' Bias = '+str(round(bias_below,2)), fontsize=15, ha='left',va='bottom')
-	plt.text(2.8,2.,r'$\log g > 3.5$: RMS = '+str(round(rms_above,2))+' Bias = '+str(round(bias_above,2)), fontsize=15, ha='left',va='bottom')
+	ax1.text(2.8,2.2,r'$\log g < 3.5$: RMS = '+str(round(rms_below,2))+' Bias = '+str(round(bias_below,2)), fontsize=12, ha='left',va='bottom')
+	ax1.text(2.8,2.,r'$\log g > 3.5$: RMS = '+str(round(rms_above,2))+' Bias = '+str('{0:.2f}'.format(bias_above)), fontsize=12, ha='left',va='bottom')
 	plt.tight_layout()
 	savedir='/Users/maryumsayeed/Desktop/HuberNess/iPoster/'
 	plt.savefig(savedir+'cannon_results.pdf',dpi=50)
-	plt.show()
+	# plt.show(True)
 	
 	
 

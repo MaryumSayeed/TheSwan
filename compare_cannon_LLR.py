@@ -156,7 +156,7 @@ for jj in range(nstars):
     model_all.append(model_gen) 
 model_all = model_all # 16 rows x 21000 cols: 16 stars & 21000 frequency bins
 freq    =np.arange(10.011574074074073,277.76620370370375,0.01157)
-legend_labels=['Cannon Inferred:','Cannon Inferred:','Cannon Inferred:']
+legend_labels=['Cannon Inference:','Cannon Inference:','Cannon Inference:']
 COLORS=['blue','red','green']
 #plt.figure(figsize=(8,6))
 
@@ -280,61 +280,93 @@ def get_amp(file):
 	
 	return freq,amp
 
-plt.figure(figsize=(15,6))
-plt.rc('font', family='serif')
-plt.rc('text', usetex=True)
+fig=plt.figure(figsize=(7,10))
+plt.subplots_adjust(hspace = 0)
+# plt.rc('font', family='serif')
+# plt.rc('text', usetex=True)
 plt.rc('xtick', labelsize=20)
 plt.rc('ytick', labelsize=20)
 plt.rc('legend',fontsize=12)
+
 LW=2
 
+ax = fig.add_subplot(111)    
+ax.spines['top'].set_visible(False)
+ax.spines['right'].set_visible(False)
+ax.spines['bottom'].set_visible(False)
+ax.spines['left'].set_visible(False)
+ax.set_yticks([])
+ax.set_xticks([])
+# ax.set_ylabel('PSD (ppm$^2/\mathrm{\mu}$Hz)',fontsize=20,labelpad=30)
+# 
+import matplotlib.ticker as tck
+
+llrcolor  ='#404788FF'
+ax1 = fig.add_subplot(3,1,1)
 spaces=''
 i=0
-offset = 2
+offset = 0
 f,amp=get_amp(LLR_files[giant])
 amp=10.**(np.log10(amp)+offset)
 LABEL=legend_labels[i]+' {} dex'.format(str(round(labels[i][0],2)))
-plt.loglog(f,amp,c='lightgrey',lw='1',alpha=0.7,zorder=0)
-plt.loglog(freq[0:21000],10.**(model_all[i]+offset),label=LABEL,color='tab:blue',linestyle='-',linewidth=LW)
-LABEL='LLR Inferred: {}{} dex'.format(spaces,str(round(LLR_infer[giant][0],2)))
-plt.loglog(freq_LLR,10.**(np.log10(giant_model)+offset),color='tab:orange',label=LABEL,linewidth=LW)
+ax1.loglog(f,amp,c='lightgrey',lw=1,alpha=0.7,zorder=0)
+ax1.loglog(freq[0:21000],10.**(model_all[i]+offset),label=LABEL,color='tab:green',linestyle='-',linewidth=LW)
+LABEL='LLR Inference: {}{} dex'.format(spaces,str(round(LLR_infer[giant][0],2)))
+ax1.loglog(freq_LLR,10.**(np.log10(giant_model)+offset),color=llrcolor,label=LABEL,linewidth=LW)
+ax1.set_ylim([10**1.5,1e5])
+ax1.set_xlim([9.,255])
+ax1.set_xticks([])
+plt.legend(loc='upper right')
+true_label=str(round(cannon_true[giant],2))
+ax1.text(10,50,'True Logg: {} dex'.format(true_label),bbox=dict(facecolor='white'),va='bottom',fontsize=15)
+ax1.tick_params(which='minor',axis='y',pad=4)# 
+#ax1.yaxis.set_minor_locator(tck.AutoMinorLocator())
+# plt.minorticks_on()
+
+ax2 = fig.add_subplot(3,1,2)
 
 i=1
 offset = 0
 f,amp=get_amp(LLR_files[mid])
 amp=10.**(np.log10(amp)+offset)
 LABEL=legend_labels[i]+' {} dex'.format(str(round(labels[i][0],2)))
-plt.loglog(f,amp,c='lightgrey',lw='1',alpha=0.7,zorder=0)
-plt.loglog(freq[0:21000],10.**(model_all[i]+offset),label=LABEL,color='tab:red',linestyle='-',linewidth=LW)
-LABEL='LLR Inferred: {}{} dex'.format(spaces,str(round(LLR_infer[mid][0],2)))
-plt.loglog(freq_LLR,10.**(np.log10(mid_model)+offset),color='tab:green',label=LABEL,linewidth=LW)
+ax2.loglog(f,amp,c='lightgrey',lw=1,alpha=0.7,zorder=0)
+ax2.loglog(freq[0:21000],10.**(model_all[i]+offset),label=LABEL,color='tab:green',linestyle='-',linewidth=LW)
+LABEL='LLR Inference: {}{} dex'.format(spaces,str(round(LLR_infer[mid][0],2)))
+ax2.loglog(freq_LLR,10.**(np.log10(mid_model)+offset),color=llrcolor,label=LABEL,linewidth=LW)
+ax2.set_ylim([3e1,10**3.5])
+ax2.set_xlim([9.,255])
+ax2.set_xticks([])
+plt.legend(loc='upper right')
+true_label=str(round(cannon_true[mid],2))
+ax2.text(10,40,'True Logg: {} dex'.format(true_label),bbox=dict(facecolor='white'),va='bottom',fontsize=15)
+ax2.set_ylabel('PSD [ppm$^2/\mathrm{\mu}$Hz]',fontsize=20)#,labelpad=30)
+
+ax3 = fig.add_subplot(3,1,3)
 
 i=2
-offset = -2
+offset = 0
 f,amp=get_amp(LLR_files[dwarf])
 amp=10.**(np.log10(amp)+offset)
 LABEL=legend_labels[i]+' {} dex'.format(str(round(labels[i][0],2)))
-plt.loglog(f,amp,c='lightgrey',lw='1',alpha=0.7,zorder=0)
-plt.loglog(freq[0:21000],10.**(model_all[i]+offset),label=LABEL,color='k',linestyle='-',linewidth=LW)
-LABEL='LLR Inferred: {}{} dex'.format(spaces,str(round(LLR_infer[dwarf][0],2)))
-plt.loglog(freq_LLR,10.**(np.log10(dwarf_model)+offset),color='tab:purple',label=LABEL,linewidth=LW)
+ax3.loglog(f,amp,c='lightgrey',lw=1,alpha=0.7,zorder=0)
+ax3.loglog(freq[0:21000],10.**(model_all[i]+offset),label=LABEL,color='tab:green',linestyle='-',linewidth=LW)
+LABEL='LLR Inference: {}{} dex'.format(spaces,str(round(LLR_infer[dwarf][0],2)))
+ax3.loglog(freq_LLR,10.**(np.log10(dwarf_model)+offset),color=llrcolor,label=LABEL,linewidth=LW)
+ax3.set_ylim([10**(0.5),1e3])
+ax3.set_xlim([9.,255])
+ax3.set_xlabel('Frequency [$\mathrm{\mu}$Hz]',fontsize=20)
+plt.legend(loc='upper right')
 
-plt.ylim([1e-4,1e8])
-plt.xlim([9.,278])
-plt.xlabel('Frequency ($\mathrm{\mu}$Hz)',fontsize=20)
-plt.ylabel('PSD (ppm$^2/\mathrm{\mu}$Hz)',fontsize=20)
-
-true_label=str(round(cannon_true[giant],2))
-plt.text(110,40000,'Giant True Logg: {} dex'.format(true_label),va='bottom',fontsize=20)
-true_label=str(round(cannon_true[mid],2))
-plt.text(110,140,'Subgiant True Logg: {} dex'.format(true_label),va='bottom',fontsize=20)
 true_label=str(round(cannon_true[dwarf],2))
-plt.text(110,1e0,'Dwarf True Logg: {} dex'.format(true_label),va='bottom',fontsize=20)
-plt.legend(loc='best')
-
+ax3.text(10,5e0,'True Logg: {} dex'.format(true_label),bbox=dict(facecolor='white'),va='bottom',fontsize=15)
+ 
+# plt.ylabel('PSD (ppm$^2/\mathrm{\mu}$Hz)',fontsize=20)
+ax1.get_shared_x_axes().join(ax1, ax2)
+ax2.get_shared_x_axes().join(ax2, ax3)
 
 plt.tight_layout()
-# plt.savefig('/Users/maryumsayeed/Desktop/HuberNess/iPoster/cannon_vs_LLR.pdf',dpi=50)
+# plt.savefig('/Users/maryumsayeed/Desktop/HuberNess/iPoster/cannon_vs_LLR_sep.pdf',dpi=50)
 plt.show(False)
 
 

@@ -3,6 +3,7 @@
 import numpy as np
 import time, re
 import pandas as pd
+import csv
 from matplotlib import rc
 import matplotlib.ticker as ticker
 import matplotlib.pyplot as plt
@@ -20,8 +21,8 @@ from astropy.stats import mad_std
 from scipy.stats import gaussian_kde
 
 
-plt.rc('font', family='serif')
-plt.rc('text', usetex=True)
+# plt.rc('font', family='serif')
+# plt.rc('text', usetex=True)
 plt.rcParams['axes.linewidth'] = 1.
 
 gaia     =ascii.read('/Users/maryumsayeed/Desktop/HuberNess/mlearning/powerspectrum/DR2PapTable1.txt',delimiter='&')
@@ -212,8 +213,8 @@ def init_plots(true,labelm1,labelm2):
 	plt.subplot(121)
 	plt.plot(true,true,c='k',linestyle='dashed')
 	plt.scatter(true,labelm1,facecolors='grey', edgecolors='k',label='Model 1 ({})'.format(len(true)),s=10)
-	plt.xlabel('Gaia Logg (dex)')
-	plt.ylabel('inferred Logg (dex)')
+	plt.xlabel('Gaia Logg [dex]')
+	plt.ylabel('inferred Logg [dex]')
 	plt.xlim([0,4.8])
 	plt.legend()
 	bias,rms=returnscatter(true-labelm1)
@@ -221,7 +222,7 @@ def init_plots(true,labelm1,labelm2):
 	plt.subplot(122)
 	plt.plot(true,true,c='k',linestyle='dashed')
 	plt.scatter(true,labelm2,facecolors='grey', edgecolors='k',label='Model 2 ({})'.format(len(true)),s=10)
-	plt.xlabel('Gaia Logg (dex)')
+	plt.xlabel('Gaia Logg [dex]')
 	plt.xlim([0,4.8])
 	bias,rms=returnscatter(true-labelm2)
 	print('Model 2 --','RMS:',rms,'Bias:',bias)
@@ -323,25 +324,28 @@ def remove_high_chi2(chi2_vals):
 	plt.xlim([0,500])
 	plt.show(False)
 	plt.clf()
-	cutoff=300
+	cutoff=400
 	keep=np.where(chi2_vals<cutoff)[0]
 	print('-- Stars with chi2 < {}:'.format(cutoff),len(keep))
+	print('-- Stars with chi2 > {}:'.format(cutoff),len(np.where(chi2_vals>cutoff)[0]))
 	return keep
 
 
 def final_result(keep1,keep2,true,labelm1,labelm2):
 	keep=list(set(keep1) & set(keep2))
-	
+	_,rms=returnscatter(labelm1[keep]-true[keep])
 	print('-- Final stars:',len(keep))
-
-	check_idx=np.where(abs(true[keep]-labelm1[keep])>0.6)[0]
+	offset=3*rms
+	print('RMS:',rms,'Outlier cutoff:',offset)
+	
+	check_idx=np.where(abs(true[keep]-labelm1[keep])>offset)[0]
 	#plt.figure(figsize=(10,5))
 	plt.subplot(121)
 	plt.plot(true,true,c='k',linestyle='dashed')
 	plt.scatter(true[keep],labelm1[keep],facecolors='grey', edgecolors='k',label='Model 1 ({})'.format(len(keep)),s=10)
 	plt.scatter(true[keep][check_idx],labelm1[keep][check_idx],facecolors='r',s=10)
-	plt.xlabel('Asteroseismic Logg (dex)')
-	plt.ylabel('Inferred Logg (dex)')
+	plt.xlabel('Asteroseismic Logg [dex]')
+	plt.ylabel('Inferred Logg [dex]')
 	plt.xlim([0.,4.8])
 	plt.legend()
 	bias,rms=returnscatter(true[keep]-labelm1[keep])
@@ -352,22 +356,152 @@ def final_result(keep1,keep2,true,labelm1,labelm2):
 	plt.scatter(true[keep],labelm2[keep],facecolors='grey', edgecolors='k',label='Model 2 ({})'.format(len(keep)),s=10)
 	plt.scatter(true[keep][check_idx],labelm2[keep][check_idx],facecolors='r',s=10)
 
-	plt.xlabel('Asteroseismic Logg (dex)')
+	plt.xlabel('Asteroseismic Logg [dex]')
 	plt.xlim([0.,4.8])
 	plt.legend()
 	bias,rms=returnscatter(true[keep]-labelm2[keep])
 	print('Model 2 --','RMS:',rms,'Bias:',bias)
+	
 	plt.show(False)
 	
 	keep=np.array(keep)
-	investigate=keep[check_idx]
-	
-	return keep,check_idx
+	outliers=keep[check_idx]
+	print(outliers)
+	print(true[outliers])
+	return keep,check_idx,offset,outliers
 
+def investigate_outliers(outliers,keep,testfiles,true,labelm1):
+	good_stars_lum=[]
+	good_stars_kp =[]
+	good_stars_teff=[]
+	good_stars_rad=[]
+	good_stars_true_logg=[]
+	good_stars_pred_logg=[]
+
+	for star in keep:
+		file=testfiles[star][0:-3]
+		kic=re.search('kplr(.*)-', file).group(1)
+		kic=int(kic.lstrip('0'))
+		kp =allkps[kp_kics.index(kic)]
+		kic_idx=np.where(gaia['KIC']==kic)
+		t=gaia['teff'][kic_idx][0]
+		r=gaia['rad'][kic_idx][0]
+		l=r**2.*(t/5777.)**4.
+		tr=true[star]
+		pr=labelm1[star]
+		good_stars_lum.append(l)
+		good_stars_kp.append(kp)
+		good_stars_teff.append(t)
+		good_stars_rad.append(r)
+		good_stars_true_logg.append(tr)
+		good_stars_pred_logg.append(pr)
+
+
+	bad_stars_lum=[]
+	bad_stars_kp =[]
+	bad_stars_teff=[]
+	bad_stars_rad=[]
+	bad_stars_true_logg=[]
+	bad_stars_pred_logg=[]
+	for star in outliers:
+	    file=testfiles[star][0:-3]
+	    #print(star,file)
+	    kic=re.search('kplr(.*)-', file).group(1)
+	    kic=int(kic.lstrip('0'))
+	    kp =allkps[kp_kics.index(kic)]
+	    kic_idx=np.where(gaia['KIC']==kic)
+	    t=gaia['teff'][kic_idx][0]
+	    r=gaia['rad'][kic_idx][0]
+	    l=r**2.*(t/5777.)**4.
+	    tr=true[star]
+	    pr=labelm1[star]
+	    bad_stars_lum.append(l)
+	    bad_stars_kp.append(kp)
+	    bad_stars_teff.append(t)
+	    bad_stars_rad.append(r)
+	    bad_stars_true_logg.append(tr)
+	    bad_stars_pred_logg.append(pr)
+
+	_,rms=returnscatter(labelm1[keep]-true[keep])
+	cutoff=3*rms
+	print('cutoff',cutoff)
+	fig=plt.figure(figsize=(8,8))
+	plt.rc('font', size=15)                  # controls default text sizes
+	plt.rc('axes', titlesize=12)             # fontsize of the axes title
+	plt.rc('axes', labelsize=14)             # fontsize of the x and y labels
+	plt.rc('xtick', labelsize=12)            # fontsize of the tick labels
+	plt.rc('ytick', labelsize=12)            # fontsize of the tick labels
+	plt.rc('axes', linewidth=2)  
+	plt.rc('lines', linewidth=2)  
+	plt.rc('legend', fontsize=12)  
+	fig.text(0.03, 0.5, 'Normalized Counts', va='center', rotation='vertical')
+
+	bad_c='#404788FF'
+	good_c ='#55C667FF'
+
+
+	bins=20
+	plt.subplot(321)
+	binsl=np.linspace(0,100,bins)
+	# binsl=bins
+	# binsk=bins
+	# binsr=bins
+	# binst=bins
+	plt.hist(good_stars_lum,bins=binsl,density=True,edgecolor=good_c,facecolor='none',linewidth=2)
+	plt.hist(bad_stars_lum,bins=binsl,density=True,edgecolor=bad_c,facecolor='none',linewidth=2,linestyle='dashed')
+	plt.xlabel('Luminosity [L$_{\\odot}$]')
+
+	plt.subplot(322)
+	binsk=np.linspace(8,16,bins)
+	plt.hist(good_stars_kp,bins=binsk,density=True,edgecolor=good_c,facecolor='none',linewidth=2)
+	plt.hist(bad_stars_kp,bins=binsk,density=True,edgecolor=bad_c,facecolor='none',linewidth=2,linestyle='dashed')
+	plt.xlabel('Kp')
+
+	plt.subplot(323)
+	binst=np.linspace(3800.,6800.,20)
+	plt.hist(good_stars_teff,bins=binst,density=True,edgecolor=good_c,facecolor='none',linewidth=2)
+	plt.hist(bad_stars_teff,bins=binst,density=True,edgecolor=bad_c,facecolor='none',linewidth=2,linestyle='dashed')
+	plt.xlabel(r'T$_\mathrm{eff}$ [K]')
+	plt.ticklabel_format(axis="y", style="sci", scilimits=(0,0))
+
+	plt.subplot(324)
+	binsr=np.linspace(0.,40.,bins)
+	plt.hist(good_stars_rad,density=True,bins=binsr,edgecolor=good_c,facecolor='none',linewidth=2,label='$\Delta \log g < 3\sigma$')
+	plt.hist(bad_stars_rad,density=True,bins=binsr,edgecolor=bad_c,facecolor='none',linewidth=2,linestyle='dashed',label='$\Delta \log g > 3\sigma$')
+	plt.ticklabel_format(axis='y', style='sci')
+	plt.xlabel('Radius [R$_{\\odot}$]')
+	plt.legend()
+
+	plt.subplot(325)
+	binsl=np.linspace(1,4.5,bins)
+	plt.hist(good_stars_true_logg,density=True,bins=binsl,edgecolor=good_c,facecolor='none',linewidth=2)
+	plt.hist(bad_stars_true_logg,density=True,bins=binsl,edgecolor=bad_c,facecolor='none',linewidth=2,linestyle='dashed')
+	plt.xlabel('True Logg [dex]')
+
+	plt.subplot(326)
+	plt.hist(good_stars_pred_logg,density=True,bins=binsl,edgecolor=good_c,facecolor='none',linewidth=2)
+	plt.hist(bad_stars_pred_logg,density=True,bins=binsl,edgecolor=bad_c,facecolor='none',linewidth=2,linestyle='dashed')
+	plt.xlabel('Predicted Logg [dex]')
+
+	fig.add_subplot(111, frameon=False)
+	# hide tick and tick label of the big axis
+	plt.tick_params(labelcolor='none', top=False, bottom=False, left=False, right=False)
+	plt.tight_layout()
+	plt.subplots_adjust(hspace=0.4)
+	# plt.savefig('astero_outliers.pdf')
+	plt.show(False)
+	exit()
 
 def paper_plot(keep,true,labelm1,labelm2,logg_pos_err,logg_neg_err):
 	print('Producing paper plot...')
 	plt.figure(figsize=(6,8))
+	plt.rc('font', size=15)                  # controls default text sizes
+	plt.rc('axes', titlesize=15)             # fontsize of the axes title
+	plt.rc('axes', labelsize=15)             # fontsize of the x and y labels
+	plt.rc('xtick', labelsize=15)            # fontsize of the tick labels
+	plt.rc('ytick', labelsize=15)            # fontsize of the tick labels
+	plt.rc('axes', linewidth=1)  
+	plt.rc('legend', fontsize=15)
 	labelm1=np.array(labelm1)
 	ba,rmsa=returnscatter(labelm1[keep]-true[keep])
 	ms=20
@@ -377,27 +511,26 @@ def paper_plot(keep,true,labelm1,labelm2,logg_pos_err,logg_neg_err):
 
 	ax1 = plt.subplot(gs[0:3, 0:4])
 	ax1.plot(true[keep],true[keep],c='k',linestyle='dashed')
-	ax1.errorbar(true[keep],labelm1[keep],xerr=[logg_neg_err*-1,logg_pos_err],ecolor='lightcoral',markeredgecolor='k',markerfacecolor='grey',ms=4,fmt='o')
-	ax1.minorticks_off()
+	ax1.errorbar(true[keep],labelm1[keep],xerr=[logg_neg_err,logg_pos_err],ecolor='lightcoral',markeredgecolor='k',markerfacecolor='grey',ms=4,fmt='o')
 	locs, labels = plt.yticks()
-	plt.yticks([1.0,1.5,2.0,2.5,3.0,3.5,4.0,4.5,5.0], [1.0,1.5,2.0,2.5,3.0,3.5,4.0,4.5,5.0], fontsize=20)
-	plt.xticks([])
-	ax1.set_ylabel('Inferred Logg (dex)',fontsize=20)
+	newlabels=[1.0,1.5,2.0,2.5,3.0,3.5,4.0,4.5,5.0]
+	plt.yticks(newlabels, newlabels)
+	ax1.set_xticklabels([]*len(newlabels))
+	plt.minorticks_on()
+	ax1.set_ylabel('Inferred Logg [dex]')
 	ax1.set_xlim([1.,4.7])
 	ax1.set_ylim([1.,4.7])
-	ax1.text(1.2,4.5,'RMS: '+str(round(rmsa,2)),fontsize=30,ha='left',va='center')
-	ax1.text(1.2,4.2,'Bias: '+str(round(ba,4)),fontsize=30,ha='left',va='center')
-
+	ax1.text(1.1,4.5,'RMS: '+str(round(rmsa,2)),ha='left',va='center')
+	ax1.text(1.1,4.2,'Bias: '+str('{0:.2f}'.format(ba)),ha='left',va='center')
 
 	ax2 = plt.subplot(gs[3:4, 0:4])
 	ax2.scatter(true[keep],true[keep]-labelm1[keep],edgecolor='k',facecolor='grey',s=20)
 	ax2.axhline(0,c='k',linestyle='dashed')
-	ax2.set_xlabel('Asteroseismic Logg (dex)',fontsize=20)
-	ax2.set_ylabel('True-Inferred Logg (dex)',fontsize=15)
-	ax2.minorticks_off()
-	plt.xticks(fontsize=20)
-	plt.yticks([-1,0,1], [-1,0,1], fontsize=20)
-	ax2.tick_params(which='major',axis='y',pad=4)
+	ax2.set_xlabel('Asteroseismic Logg [dex]')
+	ax2.set_ylabel('True-Inferred Logg [dex]')
+	plt.minorticks_on()
+	plt.yticks([-1,0,1], [-1.0,0.0,1.0])
+	# ax2.tick_params(which='major',axis='y',pad=15)
 	ax2.set_xlim([1.,4.7])
 	
 	stda=mad_std(labelm1[keep]-true[keep])
@@ -405,10 +538,140 @@ def paper_plot(keep,true,labelm1,labelm2,logg_pos_err,logg_neg_err):
 	print(ba,rmsa,stda)
 	text_font={'color':'red','weight':'heavy'}
 	plt.tight_layout()
-	#plt.savefig('astero_final_residual.pdf',dpi=50)
+	# plt.savefig('astero_final_residual.pdf',dpi=50)
+	mjlength=5
+	mnlength=3
+	ax1.tick_params(which='both', # Options for both major and minor ticks
+	                top='False', # turn off top ticks
+	                left='True', # turn off left ticks
+	                right='False',  # turn off right ticks
+	                bottom='True',# turn off bottom ticks)
+	                length=mjlength,
+	                width=1)
+	ax1.tick_params(which='minor',length=mnlength) 
+	ax2.tick_params(which='both', top='True', left='True', bottom='True',length=mjlength,width=1) 
+	ax2.tick_params(which='minor',axis='y',length=mnlength) 
+
+	mjlength=7
+	mnlength=4
+	ax2.tick_params(which='major',axis='x',direction='inout',length=mjlength) 
+	ax2.tick_params(which='minor',axis='x',direction='inout',length=mnlength)
+	
+	stda=mad_std(labelm1[keep]-true[keep])
+	print('Stats after:')
+	print(ba,rmsa,stda)
+	text_font={'color':'red','weight':'heavy'}
+	plt.tight_layout()
+	# plt.savefig('/Users/maryumsayeed/Desktop/HuberNess/iPoster/astero_final_residual.pdf',dpi=50)
 	plt.show(False)
 	#exit()
 
+def step_by_step_plot(keep,true,labelm1,labelm2,models,alldata,allfiles):
+	good_idx=np.where((abs(true[keep]-labelm1[keep])<0.02) & (true[keep]>2) & (true[keep]<2.5))[0]
+	print(len(good_idx))
+	
+	alldata=np.array(alldata)[keep]
+	print('---done loading array.')
+	models=models[keep]
+	# exit()
+	for star in good_idx[60:70]:
+		file=allfiles[keep][star][0:-3]
+		print(star,file)
+		timeseries,time,flux,f,amp,pssm,pssm_wnoise=getps(file,1)
+		time_1,flux_1,time_2,flux_2,time_3,flux_3=timeseries
+		kic=file.split('/')[-1].split('-')[0].split('kplr')[-1]
+		kic=int(kic.lstrip('0'))
+		idx=np.where(gaia['KIC']==kic)[0]
+		t=gaia['teff'][idx][0]
+		r=gaia['rad'][idx][0]
+		l=r**2.*(t/5777.)**4.
+		kp =allkps[kp_kics.index(kic)]
+		test =10.**alldata[star,:] #compare log(PSD) values
+		model=10.**models[star] #compare log(PSD) values
+
+		fig=plt.figure(figsize=(6,8))
+
+		fs=10
+		ms  = 10
+		av  = 0.5
+		plt.rc('font', size=12)                  # controls default text sizes
+		plt.rc('axes', titlesize=15)             # fontsize of the axes title
+		plt.rc('axes', labelsize=14)             # fontsize of the x and y labels
+		plt.rc('xtick', labelsize=12)            # fontsize of the tick labels
+		plt.rc('ytick', labelsize=12)            # fontsize of the tick labels
+		plt.rc('axes', linewidth=1)  
+		plt.rc('lines', linewidth=1)  
+		plt.rc('legend', fontsize=15)
+
+		c2  ='#404788FF'
+		c1  ='lightcoral'
+		c3  ='#55C667FF'
+		ax1 = plt.subplot(311)
+		ax1.plot(time_1,flux_1,label='Original',c=c1)
+		ax1.plot(time_2,flux_2,label='Outliers removed',c=c2)
+		ax1.plot(time_3,flux_3,label='Long-periodic variations removed',c=c3)
+		# ax1.set_title('KICID: {}'.format(str(kic)))
+		ax1.set_xlabel('Time [Days]')
+		ax1.set_ylabel('Flux [Counts]')
+
+		# y_fmt = ticker.FormatStrFormatter('%1.1e')
+		# ax1.yaxis.set_major_formatter(y_fmt)
+		ax1.ticklabel_format(axis='y',style='sci',scilimits=(1,4))
+
+		# y_formatter = ticker.ScalarFormatter(useOffset=True)
+		# ax1.yaxis.set_major_formatter(y_formatter)
+
+		# plt.yticks(fontsize=yticksize)
+
+		ax2 = plt.subplot(312,sharex=ax1)
+		ax2.plot(time,flux,c='k')
+		ax2.set_xlabel('Time [Days]')
+		ax2.set_ylabel('Normalized Flux')
+
+		y_fmt = ticker.FormatStrFormatter('%0.3f')
+		ax2.get_yaxis().get_major_formatter().set_useOffset(True)
+		ax2.yaxis.set_major_formatter(y_fmt)
+		# ax2.ticklabel_format(axis='y',style='sci',useOffset=True)#scilimits=(-1,1))
+
+		ax3 = plt.subplot(313)
+		nbins=21000
+		ax3.loglog(f,amp,c='k')
+		ax3.loglog(f,pssm_wnoise,c=c3,label='Smoothed',linewidth=2)
+		ax3.axvspan(f[864],f[864+nbins], facecolor='white', alpha=0.2,zorder=10)
+		newfreq=f[864:864+nbins]
+		ax3.set_xlim([10,255])
+		ax3.set_ylim([0.01,17e4])
+		ax3.set_xlabel('Frequency [$\mu$Hz]')
+		ax3.set_ylabel(r'PSD [ppm$^2$/$\mu$Hz]')
+
+		fig.align_ylabels([ax1,ax2,ax3])
+		# plt.subplots_adjust(wspace=0,hspace=0.3)
+
+		ax1.get_shared_x_axes().join(ax1, ax2)
+		fig.tight_layout(pad=0.50)
+		# plt.xticks(fontsize=xticksize)
+		# plt.yticks(fontsize=yticksize)
+		#ax3.set_title('KICID: {} Teff: {} Rad: {} Lum: {} Kp: {}'.format(str(kic),t,round(r,2),round(l,2),round(kp,2)),fontsize=20)
+		#tr=round(testlabels[star],2)
+		#pr=round(labelm1[star],2)
+
+		#if kic in [7800907,8812919,12006368,2716376]:
+		if kic in [8812919]:
+			plt.savefig('{}_new.pdf'.format(kic),dpi=50)
+			# np.save('time_1.npy',time_1)
+			# np.save('time_2.npy',time_2)
+			# np.save('time_3.npy',time_3)
+			# np.save('flux_1.npy',flux_1)
+			# np.save('flux_2.npy',flux_2)
+			# np.save('flux_3.npy',flux_3)
+			# np.save('time.npy',time)
+			# np.save('flux.npy',flux)
+			# np.save('f.npy',f)
+			# np.save('amp.npy',amp)
+			# np.save('pssm_wnoise.npy',pssm_wnoise)
+		plt.show(False)
+		# exit()
+	exit()
 
 def check_models(keep,badidx,true,labelm1,labelm2,models,alldata,allfiles):
 	plt.plot(true,true)
@@ -501,6 +764,57 @@ def get_logg_error(keep,allfiles):
 	
 	return logg_pos_err,logg_neg_err
 
+def get_table(keep,allfiles,testlabels,labels_m1,logg_pos_err,logg_neg_err):
+	kics=np.zeros(len(keep))
+	teffs=np.zeros(len(keep))
+	true_logg=np.zeros(len(keep))
+	infer_logg=np.zeros(len(keep))
+	radii=np.zeros(len(keep))
+	rad_pos_err=np.zeros(len(keep))
+	rad_neg_err=np.zeros(len(keep))
+	for i in range(0,len(keep)):
+		star=keep[i]
+		file=allfiles[star]
+		kic=re.search('kplr(.*)-', file).group(1)
+		kic=int(kic.lstrip('0'))
+		idx=np.where(gaia['KIC']==kic)[0]
+		t     =gaia['teff'][idx][0]
+		r     =gaia['rad'][idx][0]
+		r_errp=gaia['radep'][idx][0]
+		r_errn=gaia['radem'][idx][0]
+		kics[i]  =kic
+		teffs[i] =t
+		radii[i] =r
+		rad_pos_err[i]=r_errp
+		rad_neg_err[i]=r_errn
+		true_logg[i]=testlabels[star]
+		infer_logg[i]=labels_m1[star]
+
+	kics,teffs=[int(i) for i in kics],[int(i) for i in teffs]
+	header = ['KICID', 'Teff', 'Radius','Radp','Radn','True_Logg','Loggp','Loggn','Inferred_Logg'] 
+	with open('Astero_Final_Catalogue.txt', 'w') as f:
+		w = csv.writer(f, delimiter=';')
+		w.writerow(header)
+		for row in zip(kics,teffs,radii,rad_pos_err,rad_neg_err,true_logg,logg_pos_err,logg_neg_err,infer_logg):
+			w.writerow(row)
+	
+	df = pd.read_csv('Astero_Final_Catalogue.txt',index_col=False,delimiter=';')
+	df.sort_values(by=['KICID'], inplace=True)
+	#print(df)
+	HEADER=';'.join(header)
+	FMT=['%1.2f' for i in range(0,len(header))]
+	FMT[0]='%i'
+	FMT[1]='%i'
+	# np.savetxt('output2.txt', df.values,delimiter=';',fmt=FMT,header=HEADER)
+	df_short=df.head(10)
+	FMT=['%s' for i in range(0,len(header)-1)]
+	FMT.insert(0,'%i')
+	print(FMT)
+	#np.savetxt('Astero_short.txt', df_short.values,delimiter=' & ',fmt=FMT,newline=' \\\\\n',header=HEADER)
+	exit()
+
+
+
 def main(start):
 	dirr='/Users/maryumsayeed/Desktop/HuberNess/mlearning/powerspectrum/jan2020_astero_sample/'
 	average=np.load(dirr+'average.npy')
@@ -523,20 +837,27 @@ def main(start):
 	
 	#init_plots(testlabels,labels_m1,labels_m2)
 
-	radii,avg_psd=get_avg_psd(all_files,all_data)
-	keep_idx_1   =fit_power_radius(radii,avg_psd)
-	keep_idx_2   =remove_high_chi2(chi2_vals)
-	keep,badidx  =final_result(keep_idx_1,keep_idx_2,testlabels,labels_m1,labels_m2)
-
+	radii,avg_psd    =get_avg_psd(all_files,all_data)
+	keep_idx_1       =fit_power_radius(radii,avg_psd)
+	keep_idx_2       =remove_high_chi2(chi2_vals)
+	keep,badidx,diff,outliers =final_result(keep_idx_1,keep_idx_2,testlabels,labels_m1,labels_m2)
+	investigate_outliers(outliers,keep,all_files,testlabels,labels_m1)
+	exit()
 	#check_models(keep,badidx,testlabels,labels_m1,labels_m2,spectra_m1,all_data,all_files)
+
 	print('=== original:',len(radii))
 	print('=== after cleaning:',len(keep))
-	print('=== outliers (diff>0.6):',len(badidx))
+	print('=== outliers (diff>{}):'.format(diff),len(badidx))
 	print('=== fraction of outliers:',len(badidx)/len(keep))
-	np.save('index_of_good_stars.npy',keep)
+
+	# np.save('index_of_good_stars.npy',keep)
+	# exit()
+	step_by_step_plot(keep,testlabels,labels_m1,labels_m2,spectra_m1,all_data,all_files)
 	exit()
 	logg_pos_err,logg_neg_err=get_logg_error(keep,all_files)
-	paper_plot(keep,testlabels,labels_m1,labels_m2,logg_pos_err,logg_neg_err)
+	# logg_pos_err,logg_neg_err=[0]*len(keep),[0]*len(keep)
+	#get_table(keep,all_files,testlabels,labels_m1,logg_pos_err,logg_neg_err)
+	# paper_plot(keep,testlabels,labels_m1,labels_m2,logg_pos_err,logg_neg_err)
 	exit()
 	
 	

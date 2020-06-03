@@ -38,24 +38,31 @@ for jj in range(nstars):
     model_all.append(model_gen) 
 model_all = model_all # 16 rows x 21000 cols: 16 stars & 21000 frequency bins
 
-plt.rc('font', family='serif')
-plt.rc('text', usetex=True)
-plt.xticks(fontsize=20)
-plt.yticks(fontsize=20)
-plt.rc('legend',fontsize=12)
+# plt.rc('font', family='serif')
+# plt.rc('text', usetex=True)
+plt.rc('font', size=16)                  # controls default text sizes
+plt.rc('axes', titlesize=16)             # fontsize of the axes title
+plt.rc('axes', labelsize=16)             # fontsize of the x and y labels
+plt.rc('xtick', labelsize=16)            # fontsize of the tick labels
+plt.rc('ytick', labelsize=16)            # fontsize of the tick labels
+plt.rc('axes', linewidth=2)  
+plt.rc('lines', linewidth=2)  
+plt.rc('legend', fontsize=12)  
+
+
 freq    =np.arange(10.011574074074073,277.76620370370375,0.01157)
 lineStyles=['solid','dashed','dotted','dashdot']
 pdfs=[]
 for i in range(0,len(model_all)):
-	logg,kp=str(labels[i][0]),str(labels[i][1])
-	LABEL=r'$\log g$: {} Kp: {}'.format(logg,kp)
+	logg,kp=str(labels[i][0]),str(int(labels[i][1]))
+	LABEL=r'$\log g$: {}, Kp: {}'.format(logg,kp)
 	plt.loglog(freq[0:21000],10.**model_all[i],label=LABEL)#,linestyle=lineStyles[i])
 	#plt.title(str(labels[i]))
 	plt.ylim([1e-1,1e5])
 	plt.xlim([9.,300])
 	plt.legend(loc='lower left')
-	plt.xlabel(r'Frequency ($\mathrm{\mu}$Hz)',fontsize=20)
-	plt.ylabel(r'PSD (ppm$^2/\mathrm{\mu}$Hz)',fontsize=20)
+	plt.xlabel(r'Frequency [$\mathrm{\mu}$Hz)')
+	plt.ylabel(r'PSD [ppm$^2/\mathrm{\mu}$Hz]')
 	#plt.title('trained on: BO')
 	name='{}.pdf'.format(i)
 	pdfs.append(name)

@@ -6,6 +6,11 @@ psdir='/Users/maryumsayeed/Desktop/HuberNess/mlearning/powerspectrum/'
 pande_results=np.loadtxt(psdir+'pande_results_table.txt',delimiter=',',skiprows=1,usecols=[8,9],dtype=float)
 pande_kics   =np.loadtxt(psdir+'pande_results_table.txt',delimiter=',',skiprows=1,usecols=[0],dtype=int)
 
+print(pande_results[0:3])
+print(np.min(pande_results[:,0]))
+print(np.max(pande_results[:,0]))
+# exit()
+
 astero_files1=np.loadtxt(psdir+'astero_final_sample_1.txt',usecols=[0],dtype='str')
 astero_files2=np.loadtxt(psdir+'astero_final_sample_2.txt',usecols=[0],dtype='str')
 astero_files3=np.loadtxt(psdir+'astero_final_sample_3.txt',usecols=[0],dtype='str')
@@ -62,61 +67,85 @@ def returnscatter(diffxy):
 
 ast_true,LLR_infer,pande_infer=np.array(ast_true),np.array(LLR_infer),np.array(pande_infer)
 
-plt.rc('font', family='serif')
-plt.rc('text', usetex=True)
+# plt.rc('font', family='serif')
+# plt.rc('text', usetex=True)
 plt.rcParams['font.size']=15
 fs=15
-plt.figure(figsize=(15,5))
-plt.subplot(131)
+fig=plt.figure(figsize=(6,10))
+# plt.subplots_adjust(hspace=None)
+ax1=plt.subplot(211)
 plt.plot(ast_true,ast_true,c='k',linestyle='dashed')
-plt.scatter(my_true,my_infer,c='lightcoral',alpha=0.2,s=10,label='Our Sample')
-plt.scatter(ast_true,LLR_infer,edgecolor='k',facecolor='none',s=10,label='Overlapping')
+plt.scatter(my_true,my_infer,c='lightcoral',s=10,label='Our Sample')
+plt.scatter(ast_true,LLR_infer,c='k',s=10,label='Overlapping')
 my_outliers=np.where(abs(ast_true-LLR_infer)>0.5)[0]
-
 
 b,r=returnscatter(LLR_infer-ast_true)
 below=np.where(ast_true<=3.5)[0]
 bias_below,rms_below=returnscatter(ast_true[below]-LLR_infer[below])
 above=np.where((ast_true>3.5) & (abs(ast_true-LLR_infer)<0.5))[0]
 bias_above,rms_above=returnscatter(ast_true[above]-LLR_infer[above])
+b,r=returnscatter(LLR_infer-ast_true)
 
-plt.text(2.,4.5,r'$< 3.5$: RMS = '+str(round(rms_below,2))+' Bias = '+str(round(bias_below,2)), fontsize=10, ha='left',va='bottom')
-plt.text(2.,4.3,r'$> 3.5$: RMS = '+str(round(rms_above,2))+' Bias = '+str(round(bias_above,2)), fontsize=10, ha='left',va='bottom')
+plt.text(1.95,4.5,r'$< 3.5$: RMS = '+str(round(rms_below,2))+' Bias = '+str('{0:.2f}'.format(bias_below)), fontsize=12, ha='left',va='bottom')
+plt.text(1.95,4.3,r'$> 3.5$: RMS = '+str(round(rms_above,2))+' Bias = '+str('{0:.2f}'.format(bias_above)), fontsize=12, ha='left',va='bottom')
+plt.text(1.95,4.1,'RMS = '+str(round(r,2))+' Bias = '+str('{0:.2f}'.format(b)), fontsize=12, ha='left',va='bottom')
+
 plt.xlim([1.9,4.7])
 plt.ylim([1.9,4.7])
-plt.xlabel('True Asteroseismic Logg (dex)',fontsize=fs)
-plt.ylabel('Our Inferred Logg (dex)',fontsize=fs)
-plt.legend(fontsize=7,loc='lower right')
+#plt.xlabel('True Asteroseismic Logg [dex]',fontsize=fs)
 
-plt.subplot(132)
+plt.ylabel('This Work Logg [dex]',fontsize=fs)
+locs,labels=plt.xticks()
+ax1.set_xticklabels([]*len(labels))
+plt.minorticks_on()
+# plt.xticks([])
+lgnd=plt.legend(fontsize=12,loc='lower right')
+lgnd.legendHandles[0]._sizes = [40]
+lgnd.legendHandles[1]._sizes = [40]
+
+ax2=plt.subplot(212)
+plt.minorticks_on()
 plt.plot(my_true,my_true,c='k',linestyle='dashed',label='Asteroseismic Logg')
-plt.scatter(ast_true,pande_infer,edgecolor='k',facecolor='none',s=10)
+plt.scatter(ast_true,pande_infer,c='k',s=10)
 
 above=np.where(ast_true>3.5)[0]
 bias_below,rms_below=returnscatter(ast_true[below]-pande_infer[below])
 bias_above,rms_above=returnscatter(ast_true[above]-pande_infer[above])
-
-plt.text(2.,4.5,r'$< 3.5$: RMS = '+str(round(rms_below,2))+' Bias = '+str(round(bias_below,2)), fontsize=10, ha='left',va='bottom')
-plt.text(2.,4.3,r'$> 3.5$: RMS = '+str(round(rms_above,2))+' Bias = '+str(round(bias_above,2)), fontsize=10, ha='left',va='bottom')
 b,r=returnscatter(pande_infer-ast_true)
-plt.xlim([1.9,4.7])
-plt.ylim([1.9,4.7])
-plt.xlabel('True Asteroseismic Logg (dex)',fontsize=fs)
-plt.ylabel('Pande Inferred Logg (dex)',fontsize=fs)
-plt.legend(fontsize=10,loc='lower right')
 
-plt.subplot(133)
+plt.text(1.95,4.5,r'$< 3.5$: RMS = '+str(round(rms_below,2))+' Bias = '+str('{0:.2f}'.format(bias_below)), fontsize=12, ha='left',va='bottom')
+plt.text(1.95,4.3,r'$> 3.5$: RMS = '+str(round(rms_above,2))+' Bias = '+str('{0:.2f}'.format(bias_above)), fontsize=12, ha='left',va='bottom')
+plt.text(1.95,4.1,'RMS = '+str(round(r,2))+' Bias = '+str('{0:.2f}'.format(b)), fontsize=12, ha='left',va='bottom')
 plt.xlim([1.9,4.7])
 plt.ylim([1.9,4.7])
-plt.plot(ast_true,ast_true,c='k',linestyle='dashed',label='Asteroseismic Logg')
-plt.scatter(pande_infer,LLR_infer,edgecolor='k',facecolor='none',s=10)
-plt.xlabel('Pande Inferred Logg (dex)',fontsize=fs)
-plt.ylabel('Our Inferred Logg (dex)',fontsize=fs)
-plt.legend(fontsize=10,loc='upper left')
+plt.xlabel('Asteroseismic Logg [dex]',fontsize=fs)
+plt.ylabel('Pande Inferred Logg [dex]',fontsize=fs)
+#plt.legend(fontsize=10,loc='lower right')
+mjlength=5
+mnlength=3
+
+ax2.tick_params(which='both', top='True', left='True', bottom='True',length=mjlength)#,width=1) 
+ax2.tick_params(which='minor',axis='y',length=mnlength) 
+
+mjlength=7
+mnlength=4
+ax2.tick_params(which='major',axis='x',direction='inout',length=mjlength) 
+ax2.tick_params(which='minor',axis='x',direction='inout',length=mnlength)
+
+# plt.subplot(133)
+# plt.xlim([1.9,4.7])
+# plt.ylim([1.9,4.7])
+# plt.plot(ast_true,ast_true,c='k',linestyle='dashed',label='Asteroseismic Logg')
+# plt.scatter(pande_infer,LLR_infer,edgecolor='k',facecolor='none',s=10)
+# plt.xlabel('Pande Inferred Logg [dex]',fontsize=fs)
+# plt.ylabel('Our Inferred Logg [dex]',fontsize=fs)
+# plt.legend(fontsize=10,loc='upper left')
 
 savedir='/Users/maryumsayeed/Desktop/HuberNess/iPoster/'
-plt.tight_layout()
+fig.tight_layout()
+plt.subplots_adjust(hspace=0)
+
 plt.savefig(savedir+'pande2018_vs_us_new.png')#,dpi=50)
 
 
-plt.show()
+plt.show(False)
