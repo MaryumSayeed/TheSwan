@@ -62,11 +62,11 @@ if __name__ == '__main__':
  
     # d='/Users/maryumsayeed/Desktop/pande/pande_lcs/'
     d='/Users/maryumsayeed/Desktop/HuberNess/mlearning/powerspectrum/data/large_train_sample/'
-    #d='/Users/maryumsayeed/Desktop/HuberNess/mlearning/powerspectrum/data/'
+    # d='/Users/maryumsayeed/Desktop/HuberNess/mlearning/powerspectrum/data/'
     # d='/Users/maryumsayeed/Downloads/addtoast/'
     files=glob.glob(d+'*.fits')
     # files=files[0:10]
-    print(len(files))
+    print('# of files',len(files))
     kics=np.zeros(len(files),dtype='int')
     teffs=np.zeros(len(files))
     lums=np.zeros(len(files))
@@ -87,11 +87,17 @@ if __name__ == '__main__':
     #test=np.loadtxt('/Users/maryumsayeed/Desktop/HuberNess/mlearning/powerspectrum/inspect.txt',usecols=0,dtype='str')
     #teststars=[i[0:-3] for i in test]
     #print('# of stars to check:',len(teststars))
+
+    # investigate wnoise fraction in power spectra
+    more=np.zeros(len(files))
+    less=np.zeros(len(files))
+
+
     for i in range(0,len(files)):
         f=files[i]
         kicid=int(files[i].split('/')[-1].split('-')[0].split('kplr')[-1].lstrip('0'))
         try:
-            print(i,kicid,f,'h')
+            # print(i,kicid,f,'h')
             # exit()
             data=fits.open(files[i])
             head=data[0].data
@@ -131,7 +137,7 @@ if __name__ == '__main__':
             #um=np.where(kps['Kepler_ID'] == kicid)[0]
             #kpmags[i]=kps['kepmag'][um]
              
-            print('   ',teffs[i],lums[i])
+            # print('   ',teffs[i],lums[i])
              
             #if (logg[i] < 4.):
             #    continue
@@ -146,15 +152,15 @@ if __name__ == '__main__':
             time=time[good]
             flux=flux[good]
 
+            # === IF CHANGING LENGTH OF LIGHT CURVE, LOOK @ NEXT 4 LINES:
             # Use first third of sample:
-            third=np.arange(0,int(len(time)/3),1)
+            # third=np.arange(0,int(len(time)*(1./3.)),1)
 
-            time=time[third]
-            flux=flux[third]
+            # time=time[third]
+            # flux=flux[third]
+            # === END
 
             # plot the light curve
-            #plt.ion()
-            #plt.clf()
             # plt.subplot(3,1,1)
             # plt.plot(time,flux)
             # plt.xlabel('Time (Days)')
@@ -213,12 +219,20 @@ if __name__ == '__main__':
             # White noise correction:
             wnoise=getkp(files[i])
             amp_wn=np.zeros(len(amp))
+            power_less_than_wnoise=0
+            power_more_than_wnoise=0
             for p in range(0,len(amp)):
                 a=amp[p]
                 if a-wnoise < 0.:
                     amp_wn[p]=amp[p]
+                    power_less_than_wnoise+=1
                 if a-wnoise > 0.:
                     amp_wn[p]=a-wnoise
+                    power_more_than_wnoise+=1
+
+            print(i,kicid,'more',power_more_than_wnoise/len(amp),'less',power_less_than_wnoise/len(amp))
+            more[i]=power_more_than_wnoise/len(amp)
+            less[i]=power_less_than_wnoise/len(amp)
 
             # smooth by 2 muHz
             n=np.int(2./fres_mhz)
@@ -231,9 +245,10 @@ if __name__ == '__main__':
             n=files[i].split('/')
             
             # Save frequency & power spectrum arrays:
-            newname=files[i].replace('large_train_sample','large_train_sample_third')
+            # newname=files[i].replace('pande_lcs','pande_lcs_third')
+            # newname=files[i].replace('large_train_sample','large_train_sample_third')
             #ascii.write([freq[um],wnpssm[um]],files[i]+'.ps',names=['freq','power'],overwrite=True)
-            ascii.write([freq[um],wnpssm[um]],newname+'.ps',names=['freq','power'],overwrite=True)
+            # ascii.write([freq[um],wnpssm[um]],newname+'.ps',names=['freq','power'],overwrite=True)
             #exit()
             # try:
             #     b = ascii.read(f+'.ps')
@@ -269,7 +284,10 @@ if __name__ == '__main__':
             um=np.where(teffs > 0.)[0]
         except Exception as e:
             print(e)
+            print('here')
             continue
             # exit()
         #ascii.write([kics[um],teffs[um],lums[um]],d+'labels_0.5d_1muHz.txt',names=['kic','teff','lum'],overwrite=True)
         
+    # save text file with 
+    # ascii.write([kics,more,less],'testing_wnoise_frac.txt',names=['KICID','more','less'],overwrite=True)
