@@ -4,7 +4,8 @@ import matplotlib.pyplot as plt
 from PyPDF2 import PdfFileMerger
 
 #Load file containing coefficients from fitting the power spectrum of 500 stars:
-a=open('coeffs_real_unweighted.pickle','rb')
+dd='/Users/maryumsayeed/Desktop/HuberNess/mlearning/powerspectrum/cannon_vs_LLR/original/'
+a=open(dd+'coeffs_real_unweighted.pickle','rb')
 coeffs_file=pickle.load(a)
 a.close()
 
@@ -69,6 +70,6 @@ for i in range(0,len(model_all)):
 	#plt.savefig(d+name)
 	#plt.clf()
 plt.tight_layout()
-savedir='/Users/maryumsayeed/Desktop/HuberNess/iPoster/'
-# plt.savefig(savedir+'cannon_models.pdf',dpi=50)
+# savedir='/Users/maryumsayeed/Desktop/HuberNess/iPoster/'
+plt.savefig(dd+'cannon_models.png',dpi=100, bbox_inches='tight')
 plt.show(False)

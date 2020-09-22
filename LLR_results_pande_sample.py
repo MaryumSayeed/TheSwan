@@ -2,7 +2,7 @@
 
 import numpy as np
 import time, re
-import csv
+import csv, math
 import pandas as pd
 from matplotlib import rc
 import matplotlib.ticker as ticker
@@ -48,6 +48,7 @@ def sigclip(x,y,subs,sig):
         start=start+subs
         end=end+subs
     return keep
+
 def getclosest(num,collection):
     '''Given a number and a list, get closest number in the list to number given.'''
     return min(collection,key=lambda x:abs(x-num))
@@ -180,7 +181,8 @@ def gettraindata(text_files,pickle_files):
         labels=np.loadtxt(text_files[i],delimiter=' ',usecols=[1])
         files=np.loadtxt(text_files[i],delimiter=' ',usecols=[0],dtype=str)
         stars= len(labels)
-        data = np.memmap(pickle_files[i],dtype=np.float32,mode='r',shape=(21000,stars,3))
+        #data = np.memmap(pickle_files[i],dtype=np.float32,mode='r',shape=(21000,stars,3))
+        data = np.memmap(pickle_files[i],dtype=np.float32,mode='r',shape=(2099,stars,3)) #oversample=1
         trainlabels.append(labels)
         traindata=data[:,:,1].transpose()
         alldata.append(traindata)
@@ -204,7 +206,72 @@ def returnscatter(diffxy):
     bias = (np.mean([ (val)  for val in diffxy]))
     return bias, rms
 
-def init_plots(true,labelm1,labelm2):
+def init_plots(true,labelm1,labelm2,files):
+	plt.rc('axes', titlesize=12)             # fontsize of the axes title
+	plt.rc('axes', labelsize=12)             # fontsize of the x and y labels
+	plt.rc('xtick', labelsize=12)            # fontsize of the tick labels
+	plt.rc('ytick', labelsize=12)            # fontsize of the tick labels
+	plt.rc('axes', linewidth=1)  
+	plt.rc('legend', fontsize=12)
+	plt.rc('lines',markersize=4)
+
+	fname='LLR_gaia/pande_wnoise_frac.txt'
+	wnoise_frac=pd.read_csv(fname,delimiter=' ',names=['KICID','Fraction','Radius'],skiprows=1)
+	fracs=[]
+	for i in range(0,len(files)): 
+		file=files[i]
+		kic=re.search('kplr(.*)-', file).group(1)
+		kic=int(kic.lstrip('0'))
+		row   =wnoise_frac.loc[wnoise_frac['KICID']==kic]
+		frac=float(row['Fraction'].item())
+		fracs.append(frac)
+
+	print('SNR min/max',np.min(fracs),np.max(fracs))
+	b,rms=returnscatter(labelm1-true)
+	std=mad_std(labelm1-true)
+	fig=plt.figure(figsize=(5,6))
+	gs = gridspec.GridSpec(4, 4,hspace=0)
+
+	ax1 = plt.subplot(gs[0:3, 0:4])
+	xy = np.vstack([true,labelm1])
+	z = gaussian_kde(xy)(xy)
+	cmap = plt.get_cmap('viridis', 6)  #6=number of discrete cmap bins
+	plt.plot(true,true,c='k',linestyle='dashed')
+	im1=plt.scatter(true,labelm1,c=fracs,vmin=0.13,vmax=0.95,cmap=cmap,label='Model 1 ({})'.format(len(true)),s=3)
+
+	plt.ylabel('Inferred Logg [dex]')
+	plt.xlim([2.3,4.7])
+	plt.ylim([0.7,6.0])
+	
+	str1=r'$\sigma$ = '+str('{0:.2f}'.format(rms))
+	str2=r'$\sigma_{\mathrm{mad}}$ = '+str('{0:.2f}'.format(std))
+	str3='Offset = '+str('{0:.2f}'.format(b))
+	STR=str1+'\n'+str2+'\n'+str3
+	t=ax1.text(0.03,0.9,s=STR,color='k',ha='left',va='center',transform = ax1.transAxes)
+	t.set_bbox(dict(facecolor='none',edgecolor='none'))#, alpha=0.5, edgecolor='red'))
+
+	
+	ax1_divider = make_axes_locatable(ax1)
+	cax1 = ax1_divider.append_axes("top", size="7%", pad="2%")
+	cb1  = fig.colorbar(im1, cax=cax1, orientation="horizontal",cmap=cmap)
+	cb1.set_label('Fraction of power above white noise')
+	cax1.xaxis.set_ticks_position('top')
+	cax1.xaxis.set_label_position('top')
+	
+	ax2 = plt.subplot(gs[3:4, 0:4])
+	ax2.scatter(true,true-labelm1,c=fracs,s=3)
+	ax2.axhline(0,c='k',linestyle='dashed')
+	ax2.set_xlabel('Gaia Logg [dex]')
+	plt.xlim([2.3,4.7])
+	plt.ylim([-1,1])
+	#plt.yticks([-1,0,1], [-1.0,0.0,1.0])
+	plt.tight_layout()
+	plt.subplots_adjust(hspace=0)
+
+	plt.savefig('gaia.png',dpi=100,bbox_inches='tight')
+	plt.show(False)
+	exit()
+
 	plt.figure(figsize=(10,5))
 	plt.subplot(121)
 	plt.plot(true,true,c='k',linestyle='dashed')
@@ -223,8 +290,8 @@ def init_plots(true,labelm1,labelm2):
 	bias,rms=returnscatter(true-labelm2)
 	print('Model 2 --','RMS:',rms,'Bias:',bias)
 	plt.legend()
-	plt.show(False)
-	print('nothing')
+	plt.show(True)
+	exit()
     
 def get_avg_psd(all_files,all_data):
 	'''To remove fast rotators, plot avg psd between 10-12 uHz against radius of star.'''
@@ -242,25 +309,54 @@ def get_avg_psd(all_files,all_data):
 	
 	radii=np.zeros(len(all_files))
 	avg_psd=np.zeros(len(all_files))
+	KICS=np.array(kepler_catalogue['KIC'])
+	kics_to_save=np.zeros(len(all_files))
 	for i in range(0,len(all_files)): 
 		file=all_files[i]
 		kic=re.search('kplr(.*)-', file).group(1)
 		kic=int(kic.lstrip('0'))
-		idx=np.where(gaia['KIC']==kic)[0]
-		radius=gaia['rad'][idx[0]]
+		if kic in KICS:
+			idx=np.where(KICS==kic)
+			radius=np.array(kepler_catalogue['iso_rad'])[idx][0]
+			if math.isnan(radius) is True:
+				idx=np.where(gaia['KIC']==kic)[0]
+				radius=gaia['rad'][idx[0]]
+		else:
+			idx=np.where(gaia['KIC']==kic)[0]
+			radius=gaia['rad'][idx[0]]
+			if math.isnan(radius) is True:
+				print(2,kic)
+		#row=kepler_catalogue.loc[kepler_catalogue['KIC']==kic]
+		#radius  =row['iso_rad'].item()
+		
 		power=10.**all_data[i][start:end]
 		avg  =np.average(power)
 		radii[i]=radius
 		avg_psd[i]=avg
+		kics_to_save[i]=kic
+
+	# ascii.write([kics_to_save,radii,avg_psd],'LLR_gaia/pande_radii_avg_psd.txt',names=['KIC','Radius','Power'],overwrite=True)
+	# exit()
 	return radii,avg_psd
 
 def fit_power_radius(radii,power):
-	#plt.figure(figsize=(14,4))
+	plt.rc('font', size=15)                  # controls default text sizes
+	plt.rc('axes', titlesize=15)             # fontsize of the axes title
+	plt.rc('axes', labelsize=15)             # fontsize of the x and y labels
+	plt.rc('xtick', labelsize=15)            # fontsize of the tick labels
+	plt.rc('ytick', labelsize=15)            # fontsize of the tick labels
+	plt.rc('axes', linewidth=1)  
+	plt.rc('legend', fontsize=15)
+
+	ascii.write([power,radii],'LLR_gaia/pande_power_radii.txt',names=['pow','rad'],overwrite=True)
+	#exit()
+	# plt.figure(figsize=(14,4))
 	plt.subplot(131)
 	plt.loglog(radii,power,'k+')
 	plt.xlabel('Radii (solar)')
 	plt.ylabel('Power (ppm^2/uHz)')
 
+	x,y=radii,power
 	xdata,ydata=np.log10(radii),np.log10(power)
 	offset=0
 	def fitted_model(x, a, b):
@@ -282,39 +378,115 @@ def fit_power_radius(radii,power):
 	plt.scatter(xdata[keep],ydata[keep],c='g',s=5)
 	plt.grid(True)
 	print('auto. fitting:',len(keep))
-
-	plt.subplot(133)
-	def lin(x,a,b):
+	def linfit(x,a,b):
 		return a*np.array(x)+b
-	plt.scatter(xdata, ydata, c='k',label="original data",s=5)
 
-	m,b=2.3,1.2
-	plt.plot(xdata,lin(xdata,m,b),c='r')
+
+	# plt.scatter(xdata, ydata, c='k',marker='+',label="original data",s=5)
+	# plt.plot(xdata,(lin(xdata,m,b)),c='r')
+	# plt.scatter((xdata[keep]),(ydata[keep]),c='g',marker='+',s=5)
+	def linfit(x,a,b):
+	    x=np.array(x)
+	    return (10.**b)*(x**a)
+	def logfit(x,a,b):
+			x=np.array(x)
+			return a*x+b
+
+	
+	ax=plt.subplot(111)
+	ms=2
+	remove_c  ='#404788FF'
+	keep_c    ='#55C667FF'
+
+	#a,b=2.3,1.2
+	#diff=0.6
+	#astero fit
+	a,b=3.5,0.0
+	diff=1.4
+	#pande fit
+	a,b=2.4,0.9
 	diff=0.6
-	keep=np.where(abs(lin((xdata),m,b)-ydata)<diff)[0]
+
+	#best fit:
+	a,b=3.1,0.75
+	diff=0.7
+
+	a,b=3.2,0.70
+	diff=0.8
+	
+	keep=np.where(abs(logfit((xdata),a,b)-ydata)<diff)[0]
+	plt.figure(figsize=(6,8))
+	gs = gridspec.GridSpec(4, 4,hspace=0)
+	ax1 = plt.subplot(gs[0:3, 0:4])
+
+	ax1.scatter(x,y,c=remove_c,s=ms,label='Removed')
+	ax1.scatter(x[keep],y[keep],c=keep_c,s=ms)
+	ax1.plot(10.**(xdata),10.**(logfit(xdata,a,b)),c='k',label='Linear Best fit')
+	ax1.set_axisbelow(True)
+	plt.grid(b=True, which='major', linestyle='-', alpha=0.2)
+	plt.grid(b=True, which='minor', linestyle='-', alpha=0.2)
+	
+	locs, labels = plt.yticks()
+	#plt.ylim(0.1,2e8) #uncomment if comparing to astero plot
+	#plt.xlim(0.4,400) #uncomment if comparing to astero plot
+
+	plt.minorticks_on()
+	plt.xscale('log')
+	plt.yscale('log')
+	ax1.set_ylabel('PSD [ppm$^2$/$\mu$Hz]')
+
+	lgnd=plt.legend(loc='lower right')
+	lgnd.legendHandles[1]._sizes = [50]
+	
+	
+	ax2 = plt.subplot(gs[3:4, 0:4])
+	yloggdiff=10.**abs(ydata-logfit(xdata,a,b))
+	#ax2.scatter(10.**xdata,yloggdiff,c=remove_c,s=ms)
+	#ax2.scatter(10.**(xdata[keep]),yloggdiff[keep],c=keep_c,s=ms)
+
+	ax2.axhline(0,c='k',linestyle='dashed')
+	yfit=linfit(x,a,b)
+	ax2.scatter(x,yfit/y,c=remove_c,s=ms)
+	ax2.scatter(x[keep],(yfit/y)[keep],c=keep_c,s=ms)
+	plt.xscale('log')
+	plt.yscale('log')
+	plt.minorticks_on()
+	plt.ylim(5e-4,70)
+	plt.xlim(0.4,20)
+	
+	ax2.set_xlabel('Radius [R$_{\\odot}$]')
+	ax2.set_ylabel(r'$\frac{\mathrm{Model}}{\mathrm{Data}} $')
+	
+	ax2.set_axisbelow(True)
+	plt.grid(b=True, which='major', linestyle='-', alpha=0.2)
+	plt.grid(b=True, which='minor', linestyle='-', alpha=0.2)
+	# plt.show(True)
+	plt.tight_layout()
+	# print(np.min(10.**yloggdiff))
+	# plt.savefig('pande_power_radius.png',dpi=100,bbox_inches='tight')
 	print('manual fitting',len(keep))
-	plt.scatter(xdata[keep],ydata[keep],c='g',s=5)
-	plt.grid(True)
-	plt.show(False)
+	# exit()
 	# plt.clf()
 	print('-- Stars < {} in PSD vs. Rad plot:'.format(diff),len(keep))
 	return keep
 
-def remove_high_chi2(chi2_vals):
+def remove_high_rss(chi2_vals):
+	plt.clf()
 	plt.hist(chi2_vals,bins=100)
 	plt.xlim([0,500])
 	plt.show(False)
-	plt.clf()
-	cutoff=500
+	
+	cutoff=100
 	keep=np.where(chi2_vals<cutoff)[0]
 	print('-- Stars with chi2 < {}:'.format(cutoff),len(keep))
 	print('-- Stars with chi2 > {}:'.format(cutoff),len(np.where(chi2_vals>cutoff)[0]))
 	return keep,chi2_vals[keep]
 
-def final_result(keep1,keep2,true,labelm1,labelm2):
+def final_result(keep1,keep2,true,labelm1,labelm2):	
 	keep=list(set(keep1) & set(keep2))
 	print('-- Final stars:',len(keep))
 	_,rms=returnscatter(labelm1[keep]-true[keep])
+	std1=mad_std(labelm1[keep]-true[keep])
 
 	offset=3*rms
 	print('RMS:',rms,'Outlier cutoff:',offset)
@@ -324,34 +496,77 @@ def final_result(keep1,keep2,true,labelm1,labelm2):
 	print(len(check_idx),len(keep),len(labelm1))
 	outliers=keep[check_idx]
 	newkeep=list(set(keep)-set(outliers))
-	keep=newkeep
-	# keep=keep
+	keep=np.array(newkeep)
 
+	std1=mad_std(labelm1[keep]-true[keep])
+	bias,rms1=returnscatter(true[keep]-labelm1[keep])
+	
+	check_idx2=np.where(abs(true[keep]-labelm2[keep])>offset)[0]
+	outliers2=keep[check_idx2]
+
+	std2=mad_std(labelm2[keep]-true[keep])
+	bias,rms2=returnscatter(true[keep]-labelm2[keep])
+	
+	print('Model 1 --','RMS:',rms1,'Bias:',bias,'Stdev:',std1)
+	print('Model 2 --','RMS:',rms2,'Bias:',bias,'Stdev:',std2)
+	
+	bfinal,rmsfinal =returnscatter(true[newkeep]-labelm1[newkeep])
+	stdfinal        =mad_std(labelm1[newkeep]-true[newkeep])
+	bfinal2,rmsfinal2=returnscatter(true[newkeep]-labelm2[newkeep])
+	stdfinal2        =mad_std(labelm2[newkeep]-true[newkeep])
+	
 	plt.figure(figsize=(10,5))
-	plt.subplot(121)
+	ax1=plt.subplot(121)
 	plt.plot(true,true,c='k',linestyle='dashed')
-	plt.scatter(true[keep],labelm1[keep],facecolors='grey', edgecolors='k',label='Model 1 ({})'.format(len(true)),s=10)
+	plt.scatter(true[keep],labelm1[keep],facecolors='grey', edgecolors='k',label='RMS ({})'.format(len(newkeep)),s=10)
 	plt.scatter(true[outliers],labelm1[outliers],facecolors='lightgrey',s=10)
+
+	s1='RMS: {0:.3f}'.format(rmsfinal)
+	s2='Stdev: {0:.3f}'.format(stdfinal)
+	s3='Offset: {0:.3f}'.format(bfinal)
+	STR=s1+'\n'+s2+'\n'+s3	
+	t=ax1.text(0.03,0.9,s=STR,color='k',ha='left',va='center',transform = ax1.transAxes)
+	t.set_bbox(dict(facecolor='none',edgecolor='none'))#, alpha=0.5, edgecolor='red'))
+
 	plt.xlabel('Gaia Logg (dex)')
 	plt.ylabel('Inferred Logg (dex)')
 	plt.xlim([2,4.8])
 	plt.legend()
-	bias,rms1=returnscatter(true[keep]-labelm1[keep])
-	
-	print('Model 1 --','RMS:',rms1,'Bias:',bias)
-	plt.subplot(122)
+
+	ax2=plt.subplot(122)
 	plt.plot(true,true,c='k',linestyle='dashed')
-	plt.scatter(true[keep],labelm2[keep],facecolors='grey', edgecolors='k',label='Model 1 ({})'.format(len(true)),s=10)
-	plt.scatter(true[outliers],labelm2[outliers],facecolors='r',s=10)
+	plt.scatter(true[keep],labelm1[keep],facecolors='grey', edgecolors='k',label='mad_std ({})'.format(len(newkeep)),s=10)
+	plt.scatter(true[outliers2],labelm1[outliers2],facecolors='lightgrey',s=10)
+
+	s1='RMS: {0:.3f}'.format(rmsfinal2)
+	s2='Stdev: {0:.3f}'.format(stdfinal2)
+	s3='Offset: {0:.3f}'.format(bfinal2)
+	STR=s1+'\n'+s2+'\n'+s3
+	t=ax2.text(0.03,0.9,s=STR,color='k',ha='left',va='center',transform = ax2.transAxes)
+	t.set_bbox(dict(facecolor='none',edgecolor='none'))#, alpha=0.5, edgecolor='red'))
+
 	plt.xlabel('Gaia Logg (dex)')
 	plt.xlim([2,4.8])
+
 	plt.legend()
-	bias,rms2=returnscatter(true[keep]-labelm2[keep])
-	print('Model 2 --','RMS:',rms2,'Bias:',bias)
+	# plt.subplot(122)
+	# plt.plot(true,true,c='k',linestyle='dashed')
+	# plt.scatter(true[keep],labelm2[keep],facecolors='grey', edgecolors='k',label='Model 1 ({})'.format(len(true)),s=10)
+	# plt.scatter(true[keep][idx2],labelm2[keep][idx2],facecolors='none', edgecolors='green',s=10)
+	# plt.scatter(true[outliers],labelm2[outliers],facecolors='r',s=10)
+	# plt.scatter(true[outliers][idxo2],labelm2[outliers][idxo2],facecolors='none', edgecolors='green',s=10)
+	# plt.xlabel('Gaia Logg (dex)')
+	# plt.xlim([2,4.8])
+	# plt.legend()
+	# plt.savefig('check_rms_vs_stdev_pande.png',bbox_inches='tight')
 	plt.show(False)
 	
-	bfinal,rmsfinal=returnscatter(true[newkeep]-labelm1[newkeep])
-	return keep,check_idx,offset,rms1,rmsfinal,outliers
+	
+	print('using model1')
+	print('---',bfinal,rmsfinal,stdfinal)
+	print('using model2')
+	print('---',bfinal2,rmsfinal2,stdfinal2)
+	return keep,check_idx,offset,rms1,rmsfinal,stdfinal,outliers
 
 def investigate_outliers(outliers,keep,testfiles,true,labelm1):
 	print('Investigating outliers...')
@@ -419,6 +634,13 @@ def investigate_outliers(outliers,keep,testfiles,true,labelm1):
 	# plt.subplot(122)
 	# plt.hist(bad_stars_rad)
 	# plt.show(True)
+	print('Bad stars stats:')
+	for i in [bad_stars_lum,bad_stars_kp,bad_stars_teff,bad_stars_rad,bad_stars_true_logg,bad_stars_pred_logg]:
+		print(np.min(i),np.max(i))
+
+	print('Good stars stats:')
+	for i in [good_stars_lum,good_stars_kp,good_stars_teff,good_stars_rad,good_stars_true_logg,good_stars_pred_logg]:
+		print(np.min(i),np.max(i))		
 
 	_,rms=returnscatter(labelm1[keep]-true[keep])
 	cutoff=3*rms
@@ -488,8 +710,9 @@ def investigate_outliers(outliers,keep,testfiles,true,labelm1):
 	plt.tick_params(labelcolor='none', top=False, bottom=False, left=False, right=False)
 	plt.tight_layout()
 	plt.subplots_adjust(hspace=0.4)
-	plt.savefig('00.pdf')
+	# plt.savefig('pande_outliers_both.pdf')
 	plt.show(False)
+	# exit()
 	return [good_stars_lum,bad_stars_lum,good_stars_kp,bad_stars_kp,good_stars_teff,bad_stars_teff,good_stars_rad,bad_stars_rad,good_stars_true_logg,bad_stars_true_logg,good_stars_pred_logg,bad_stars_pred_logg]
 	# exit()
 
@@ -511,8 +734,8 @@ def paper_plot(keep,outliers,true,labelm1,labelm2,logg_pos_err,logg_neg_err):
 
 	ax1 = plt.subplot(gs[0:3, 0:4])
 	ax1.plot(true[keep],true[keep],c='k',linestyle='dashed')
-	ax1.errorbar(true[keep],labelm1[keep],xerr=[logg_neg_err*-1,logg_pos_err],ecolor='lightcoral',markeredgecolor='k',markerfacecolor='grey',ms=4,fmt='o',zorder=10)
-	ax1.scatter(true[outliers],labelm1[outliers],edgecolor='grey',facecolor='lightgrey',s=20,zorder=1,label='Outliers')
+	ax1.errorbar(true[keep],labelm1[keep],xerr=[logg_neg_err*-1,logg_pos_err],ecolor='lightcoral',markeredgecolor='k',markerfacecolor='grey',ms=2,fmt='o',zorder=10)
+	ax1.scatter(true[outliers],labelm1[outliers],edgecolor='grey',facecolor='lightgrey',s=10,zorder=1,label='Outliers')
 	locs, labels = plt.yticks()
 	newlabels=[2.5,3.0,3.5,4.0,4.5,5.0]
 	plt.yticks(newlabels, newlabels)
@@ -529,13 +752,13 @@ def paper_plot(keep,outliers,true,labelm1,labelm2,logg_pos_err,logg_neg_err):
 	t=ax1.text(0.03,0.92,s=STR,color='k',ha='left',va='center',transform = ax1.transAxes)
 	t.set_bbox(dict(facecolor='none',edgecolor='none'))#, alpha=0.5, edgecolor='red'))
 
-	STR='Bias: '+str('{0:.2f}'.format(ba))
+	STR='Offset: '+str('{0:.2f}'.format(ba))
 	t=ax1.text(0.03,0.85,s=STR,color='k',ha='left',va='center',transform = ax1.transAxes)
 	t.set_bbox(dict(facecolor='none',edgecolor='none'))#, alpha=0.5, edgecolor='red'))
 
 	ax2 = plt.subplot(gs[3:4, 0:4])
-	ax2.scatter(true[keep],true[keep]-labelm1[keep],edgecolor='k',facecolor='grey',zorder=10)
-	ax2.scatter(true[outliers],true[outliers]-labelm1[outliers],edgecolor='grey',facecolor='lightgrey',s=20,zorder=1)
+	ax2.scatter(true[keep],true[keep]-labelm1[keep],edgecolor='k',facecolor='grey',zorder=10,s=10)
+	ax2.scatter(true[outliers],true[outliers]-labelm1[outliers],edgecolor='grey',facecolor='lightgrey',s=10,zorder=1)
 	ax2.axhline(0,c='k',linestyle='dashed')
 	ax2.set_xlabel('Gaia Logg [dex]')
 	ax2.set_ylabel('True - Inferred Logg [dex]')
@@ -547,14 +770,14 @@ def paper_plot(keep,outliers,true,labelm1,labelm2,logg_pos_err,logg_neg_err):
 	mjlength=5
 	mnlength=3
 	ax1.tick_params(which='both', # Options for both major and minor ticks
-	                top='False', # turn off top ticks
-	                left='True', # turn off left ticks
-	                right='False',  # turn off right ticks
-	                bottom='True',# turn off bottom ticks)
+	                top=False, # turn off top ticks
+	                left=True, # turn off left ticks
+	                right=False,  # turn off right ticks
+	                bottom=True,# turn off bottom ticks)
 	                length=mjlength,
 	                width=1)
 	ax1.tick_params(which='minor',length=mnlength) 
-	ax2.tick_params(which='both', top='True', left='True', bottom='True',length=mjlength,width=1) 
+	ax2.tick_params(which='both', top=True, left=True, bottom=True,length=mjlength,width=1) 
 	ax2.tick_params(which='minor',axis='y',length=mnlength) 
 
 	mjlength=7
@@ -567,7 +790,7 @@ def paper_plot(keep,outliers,true,labelm1,labelm2,logg_pos_err,logg_neg_err):
 	print(ba,rmsa,stda)
 	text_font={'color':'red','weight':'heavy'}
 	plt.tight_layout()
-	# plt.savefig('/Users/maryumsayeed/Desktop/HuberNess/iPoster/00.pdf',dpi=50)
+	# plt.savefig('pplot.png',dpi=100)
 	plt.show(False)
 	# exit()
 	return plt
@@ -575,26 +798,33 @@ def paper_plot(keep,outliers,true,labelm1,labelm2,logg_pos_err,logg_neg_err):
 def pplot_outliers_together(keep,outliers,true,labelm1,labelm2,logg_pos_err,logg_neg_err,result_hists):
 	good_stars_lum,bad_stars_lum,good_stars_kp,bad_stars_kp,good_stars_teff,bad_stars_teff,good_stars_rad,bad_stars_rad,good_stars_true_logg,bad_stars_true_logg,good_stars_pred_logg,bad_stars_pred_logg=result_hists
 	fig=plt.figure(figsize=(14,8))
-	plt.rc('font', size=20)                  # controls default text sizes
+	plt.rc('font', size=15)                  # controls default text sizes
 	plt.rc('axes', titlesize=15)             # fontsize of the axes title
 	plt.rc('axes', labelsize=15)             # fontsize of the x and y labels
 	plt.rc('xtick', labelsize=15)            # fontsize of the tick labels
 	plt.rc('ytick', labelsize=15)            # fontsize of the tick labels
 	plt.rc('axes', linewidth=1)  
 	plt.rc('legend', fontsize=15)
+	plt.rc('lines',markersize=4)
 
+
+	# report rms of all points:
+	total=np.concatenate([keep,outliers])
 	labelm1=np.array(labelm1)
-	ba,rmsa=returnscatter(labelm1[keep]-true[keep])
+	ba,rmsa=returnscatter(labelm1[total]-true[total])
+	std=mad_std(labelm1[total]-true[total])
 	ms=20
 	# AFTER PLOT:
 	gs = gridspec.GridSpec(8, 14,hspace=0)  #nrows,ncols
 
 	ax1 = plt.subplot(gs[0:6, 0:6])
 	ax1.plot(true[keep],true[keep],c='k',linestyle='dashed')
-	# print(len(keep),len(logg_neg_err),len(logg_pos_err),logg_pos_err,logg_neg_err)
-	ax1.errorbar(true[keep],labelm1[keep],xerr=[logg_neg_err*-1,logg_pos_err],ecolor='lightcoral',markeredgecolor='k',markerfacecolor='grey',ms=4,fmt='o',zorder=10)
+	# print(logg_pos_err,logg_neg_err)
+
+	ax1.errorbar(true[keep],labelm1[keep],xerr=[logg_neg_err*-1,logg_pos_err],ecolor='lightcoral',markeredgecolor='k',markerfacecolor='grey',ms=1,fmt='o',zorder=1,linewidth=1)
 	# ax1.scatter(true[keep],labelm1[keep],s=4)
-	ax1.scatter(true[outliers],labelm1[outliers],edgecolor='grey',facecolor='lightgrey',s=20,zorder=1,label='Outliers')
+	ax1.scatter(true[keep],labelm1[keep],edgecolor='k',facecolor='grey',s=4,zorder=10)
+	ax1.scatter(true[outliers],labelm1[outliers],edgecolor='grey',facecolor='lightgrey',s=4,zorder=1,label='Outliers')
 	locs, labels = plt.yticks()
 	newlabels=[2.5,3.0,3.5,4.0,4.5,5.0]
 	plt.yticks(newlabels, newlabels)
@@ -602,41 +832,45 @@ def pplot_outliers_together(keep,outliers,true,labelm1,labelm2,logg_pos_err,logg
 	ax1.set_xticklabels([]*len(newlabels))
 	plt.minorticks_on()
 	ax1.set_ylabel('Inferred Logg [dex]')#,labelpad=15)
-	ax1.set_xlim([2.,4.8])
-	ax1.set_ylim([2.,4.8])
+	ax1.set_xlim([2.3,4.6])
+	ax1.set_ylim([2.3,4.6])
 	lgnd=plt.legend(loc='lower right')
 	lgnd.legendHandles[0]._sizes = [60]
 
-	STR='RMS: '+str('{0:.2f}'.format(rmsa))
-	t=ax1.text(0.03,0.92,s=STR,color='k',ha='left',va='center',transform = ax1.transAxes)
+	str1=r'$\sigma$ = '+str('{0:.2f}'.format(rmsa))
+	str2=r'$\sigma_{\mathrm{mad}}$ = '+str('{0:.2f}'.format(std))
+	str3='Offset = '+str('{0:.2f}'.format(ba))
+	STR=str1+'\n'+str2+'\n'+str3
+	t=ax1.text(0.03,0.9,s=STR,color='k',ha='left',va='center',transform = ax1.transAxes)
 	t.set_bbox(dict(facecolor='none',edgecolor='none'))#, alpha=0.5, edgecolor='red'))
 
-	STR='Bias: '+str('{0:.2f}'.format(ba))
-	t=ax1.text(0.03,0.85,s=STR,color='k',ha='left',va='center',transform = ax1.transAxes)
-	t.set_bbox(dict(facecolor='none',edgecolor='none'))#, alpha=0.5, edgecolor='red'))
+	# STR='Offset: '+str('{0:.2f}'.format(ba))
+	# t=ax1.text(0.03,0.85,s=STR,color='k',ha='left',va='center',transform = ax1.transAxes)
+	# t.set_bbox(dict(facecolor='none',edgecolor='none'))#, alpha=0.5, edgecolor='red'))
 
 	ax2 = plt.subplot(gs[6:8, 0:6])
-	ax2.scatter(true[keep],true[keep]-labelm1[keep],edgecolor='k',facecolor='grey',zorder=10)
-	ax2.scatter(true[outliers],true[outliers]-labelm1[outliers],edgecolor='grey',facecolor='lightgrey',s=20,zorder=1)
+	ax2.scatter(true[keep],true[keep]-labelm1[keep],edgecolor='k',facecolor='grey',zorder=10,s=4)
+	ax2.scatter(true[outliers],true[outliers]-labelm1[outliers],edgecolor='grey',facecolor='lightgrey',s=4,zorder=1)
 	ax2.axhline(0,c='k',linestyle='dashed')
 	ax2.set_xlabel('Gaia Logg [dex]')
-	ax2.set_ylabel('True - Inferred Logg [dex]')
+	ax2.set_ylabel('$\Delta$ Logg [dex]')
 	plt.minorticks_on()
-	plt.yticks([-1,0,1], [-1.0,0.0,1.0])
+	plt.yticks([-0.5,0,0.5], [-0.5,0,0.5])
 	#ax2.tick_params(which='major',axis='y')#,pad=15)
-	ax2.set_xlim([2.,4.8])
+	ax2.set_xlim([2.3,4.6])
+	ax2.set_ylim([-0.8,0.8])
 	
 	mjlength=5
 	mnlength=3
 	ax1.tick_params(which='both', # Options for both major and minor ticks
-	                top='False', # turn off top ticks
-	                left='True', # turn off left ticks
-	                right='False',  # turn off right ticks
-	                bottom='True',# turn off bottom ticks)
+	                top=False, # turn off top ticks
+	                left=True, # turn off left ticks
+	                right=False,  # turn off right ticks
+	                bottom=True,# turn off bottom ticks)
 	                length=mjlength,
 	                width=1)
 	ax1.tick_params(which='minor',length=mnlength) 
-	ax2.tick_params(which='both', top='True', left='True', bottom='True',length=mjlength,width=1) 
+	ax2.tick_params(which='both', top=True, left=True, bottom=True,length=mjlength,width=1) 
 	ax2.tick_params(which='minor',axis='y',length=mnlength) 
 
 	mjlength=7
@@ -649,7 +883,7 @@ def pplot_outliers_together(keep,outliers,true,labelm1,labelm2,logg_pos_err,logg
 	print(ba,rmsa,stda)
 	# text_font={'color':'red','weight':'heavy'}
 
-	bad_c='#404788FF'
+	bad_c  ='#404788FF'
 	good_c ='#55C667FF'
 	
 	plt.rc('axes', titlesize=12)             # fontsize of the axes title
@@ -663,21 +897,21 @@ def pplot_outliers_together(keep,outliers,true,labelm1,labelm2,logg_pos_err,logg
 	bins=20
 
 	plt.subplot(gs[0:2, 6:10])
-	binsl=np.linspace(0,24,bins)
-	plt.hist(good_stars_lum,bins=binsl,density=True,edgecolor=good_c,facecolor='none',linewidth=2)
-	plt.hist(bad_stars_lum,bins=binsl,density=True,edgecolor=bad_c,facecolor='none',linewidth=2,linestyle='dashed')
-	plt.xlabel('Luminosity [L$_{\\odot}$]')
+	binsl=np.linspace(-0.6,2,bins)
+	plt.hist(np.log10(good_stars_lum),bins=binsl,density=True,edgecolor=good_c,facecolor='none',linewidth=2)
+	plt.hist(np.log10(bad_stars_lum),bins=binsl,density=True,edgecolor=bad_c,facecolor='none',linewidth=2,linestyle='dashed')
+	plt.xlabel('log$_{10}$(Luminosity [L$_{\\odot}$])')
 
 	plt.subplot(gs[0:2, 10:14])
-	binsk=np.linspace(9,14,bins)
-	plt.hist(good_stars_kp,bins=binsk,density=True,edgecolor=good_c,facecolor='none',linewidth=2,label='$\Delta \log g < 3\sigma$')
-	plt.hist(bad_stars_kp,bins=binsk,density=True,edgecolor=bad_c,facecolor='none',linewidth=2,linestyle='dashed',label='$\Delta \log g > 3\sigma$')
+	binsk=np.linspace(8.6,13.5,bins)
+	plt.hist(good_stars_kp,bins=binsk,density=True,edgecolor=good_c,facecolor='none',linewidth=2,label='$\Delta \log g \leq 3$'+r'$\sigma$')
+	plt.hist(bad_stars_kp,bins=binsk,density=True,edgecolor=bad_c,facecolor='none',linewidth=2,linestyle='dashed',label='$\Delta \log g > 3$' +r'$\sigma$')
 	plt.xlabel('Kp')
-	plt.legend(loc='upper left')
+	#plt.legend(loc='upper left')
 
 	# plt.subplot(323)
 	plt.subplot(gs[3:5, 6:10])
-	binst=np.linspace(4800.,7300.,20)
+	binst=np.linspace(4400.,8500.,20)
 	plt.hist(good_stars_teff,bins=binst,density=True,edgecolor=good_c,facecolor='none',linewidth=2)
 	plt.hist(bad_stars_teff,bins=binst,density=True,edgecolor=bad_c,facecolor='none',linewidth=2,linestyle='dashed')
 	plt.xlabel(r'T$_\mathrm{eff}$ [K]')
@@ -685,23 +919,22 @@ def pplot_outliers_together(keep,outliers,true,labelm1,labelm2,logg_pos_err,logg
 
 	# plt.subplot(324)
 	plt.subplot(gs[3:5, 10:14])
-	binsr=np.linspace(0.,10.,bins)
-	plt.hist(good_stars_rad,density=True,bins=binsr,edgecolor=good_c,facecolor='none',linewidth=2,label='$\Delta \log g < 3\sigma$')
-	plt.hist(bad_stars_rad,density=True,bins=binsr,edgecolor=bad_c,facecolor='none',linewidth=2,linestyle='dashed',label='$\Delta \log g > 3\sigma$')
+	binsr=np.linspace(0.7,8,bins)
+	plt.hist(good_stars_rad,density=True,bins=binsr,edgecolor=good_c,facecolor='none',linewidth=2,label='$\Delta \log g \leq 3$'+r'$\sigma$')
+	plt.hist(bad_stars_rad,density=True,bins=binsr,edgecolor=bad_c,facecolor='none',linewidth=2,linestyle='dashed',label='$\Delta \log g > 3$' +r'$\sigma$')
 	plt.ticklabel_format(axis='y', style='sci')
 	plt.xlabel('Radius [R$_{\\odot}$]')
+	plt.legend(loc='upper right')
 	
-
 	# plt.subplot(325)
 	plt.subplot(gs[6:8, 6:10])
-	binsl=np.linspace(2.6,4.8,bins)
+	binsl=np.linspace(2.2,4.7,bins)
 	plt.hist(good_stars_true_logg,density=True,bins=binsl,edgecolor=good_c,facecolor='none',linewidth=2)
 	plt.hist(bad_stars_true_logg,density=True,bins=binsl,edgecolor=bad_c,facecolor='none',linewidth=2,linestyle='dashed')
 	plt.xlabel('True Logg [dex]')
 
 	# plt.subplot(326)
 	plt.subplot(gs[6:8, 10:14])
-	binsl=np.linspace(2.6,4.8,bins)
 	plt.hist(good_stars_pred_logg,density=True,bins=binsl,edgecolor=good_c,facecolor='none',linewidth=2)
 	plt.hist(bad_stars_pred_logg,density=True,bins=binsl,edgecolor=bad_c,facecolor='none',linewidth=2,linestyle='dashed')
 	plt.xlabel('Predicted Logg [dex]')
@@ -710,9 +943,9 @@ def pplot_outliers_together(keep,outliers,true,labelm1,labelm2,logg_pos_err,logg
 	# hide tick and tick label of the big axis
 	# plt.tick_params(labelcolor='none', top=False, bottom=False, left=False, right=False)
 	fig.tight_layout()
-	# plt.subplots_adjust(wspace=0.5)
-	plt.savefig('101.png')
-	plt.savefig('/Users/maryumsayeed/Desktop/HuberNess/iPoster/pande_result_and_outlier.pdf')
+	plt.subplots_adjust(wspace=1.3)
+	plt.savefig('pande_result_and_outlier.png',dpi=100,bbox_inches='tight')
+	# plt.savefig('/Users/maryumsayeed/Desktop/HuberNess/iPoster/pande_result_and_outlier.pdf',dpi=400)
 	plt.show(False)
 	
 	# exit()
@@ -790,8 +1023,26 @@ def check_models(keep,badidx,true,labelm1,labelm2,models,alldata,allfiles):
 	exit()
 	#plt.show(False)
 
-def get_mass_error(radii,mass,infer_logg,rad_pos_err,rad_neg_err,logg_pos_err,logg_neg_err):
+def get_inferred_logg_error(fracs,radii):
+	data =ascii.read('inferred_logg_error.txt',names=['Lower','Upper','Error'])
+	errors=np.zeros(len(fracs))
+	def powerlaw(x, p):
+		return p[0]*np.power(x,p[1])+p[2]
+	popt=[2.15178882e-04, -3.86638614e+00,  9.94698735e-03]
+
+	for fi in range(0,len(fracs)):
+		f=fracs[fi]
+		for i in range(0,len(data)):
+			if f > 0.8 or f < 0.2:
+				errors[fi]=0.2
+			else:
+				errors[fi]=powerlaw(f,popt)
+	logg_pos_err,logg_neg_err=errors,errors
+	return logg_pos_err,logg_neg_err
+
+def get_mass_error(radii,mass,infer_logg,rad_pos_err,rad_neg_err,fracs):
 	logg=infer_logg
+	logg_pos_err,logg_neg_err=get_inferred_logg_error(fracs,radii)
 	abs_pos_err=(((logg_pos_err/logg)**2.+((rad_pos_err*2)/(radii**2.))**2.)**0.5)
 	abs_neg_err=(((logg_neg_err/logg)**2.+((rad_neg_err*2)/(radii**2.))**2.)**0.5)
 	rel_pos_err=abs_pos_err*mass
@@ -871,10 +1122,21 @@ def get_table(oparams,radii,mass,true,infer_logg,rad_pos_err,rad_neg_err,rms,log
 	logg=infer_logg
 	kics,teffs=oparams
 	kics,teffs=kics.astype(int),teffs.astype(int) 
-	ilogg_pos_err,ilogg_neg_err=[rms]*len(kics),[rms]*len(kics)
-	mass_errp,mass_errn=get_mass_error(radii,mass,infer_logg,rad_pos_err,rad_neg_err,ilogg_pos_err,ilogg_neg_err)
 
-	header = ['KICID','Kp', 'Teff', 'Radius','Radp','Radn','True_Logg','Loggp','Loggn','Inferred_Logg','True_Mass','TMassp','TMassn','Inferred_Mass','IMassp','IMassn','Outlier'] 
+	print('---get SNR.')
+	wnoise_frac=pd.read_csv('LLR_gaia/pande_wnoise_frac.txt',delimiter=' ',names=['KICID','More','Less'])
+	snr=[]
+	for kic in kics:
+		kic=str(kic)
+		if kic in np.array(wnoise_frac['KICID']):
+			row   =wnoise_frac.loc[wnoise_frac['KICID']==kic]
+			frac=float(row['More'].item())
+			snr.append(frac)
+
+	mass_errp,mass_errn=get_mass_error(radii,mass,infer_logg,rad_pos_err,rad_neg_err,snr)
+	ilogg_pos_err,ilogg_neg_err=get_inferred_logg_error(snr,radii)
+		
+	header = ['KICID','Kp', 'Teff', 'Radius','Radp','Radn','True_Logg','TLoggp','TLoggn','Inferred_Logg','ILoggp','ILoggn','True_Mass','TMassp','TMassn','Inferred_Mass','IMassp','IMassn','SNR','Outlier'] 
 	
 	# Flag outliers:
 	print('--- setting outlier flag.')
@@ -884,13 +1146,18 @@ def get_table(oparams,radii,mass,true,infer_logg,rad_pos_err,rad_neg_err,rms,log
 
 	# Find Kp values:
 	print('--- finding Kp values.')
-	kps=[allkps[kp_kics.index(kic)] for kic in kics]
+	kps=np.zeros(len(kics))
+	for i in range(0,len(kics)):
+		kic=kics[i]
+		kic=int(kic)
+		kps[i]=allkps[kp_kics.index(kic)]
+	kps=['{0:.3f}'.format(i) for i in kps]
 
-	text_filename='testing_pande_catalogue.txt'
+	text_filename='LLR_gaia/Gaia_Catalogue_v2.txt'
 	with open(text_filename, 'w') as f:
 		w = csv.writer(f, delimiter=';')
 		w.writerow(header)
-		for row in zip(kics,kps,teffs,radii,rad_pos_err,rad_neg_err,true,logg_pos_err,logg_neg_err,logg,tmass,tmass_errp,tmass_errn,mass,mass_errp,mass_errn,outliers_flag):
+		for row in zip(kics,kps,teffs,radii,rad_pos_err,rad_neg_err,true,logg_pos_err,logg_neg_err,logg,ilogg_pos_err,ilogg_neg_err,tmass,tmass_errp,tmass_errn,mass,mass_errp,mass_errn,snr,outliers_flag):
 			w.writerow(row)
 	print('...catalogue done!')
 	exit()
@@ -909,7 +1176,7 @@ def get_table(oparams,radii,mass,true,infer_logg,rad_pos_err,rad_neg_err,rms,log
 	# np.savetxt('Pande_short_may27.txt', df_short.values,delimiter=' & ',fmt=FMT,newline=' \\\\\n',header=HEADER)
 	# exit()
 
-def get_mass_radius_plot(kics,rms,radii,mass,logg,true_logg,rad_pos_err,rad_neg_err,logg_pos_err,logg_neg_err):
+def get_mass_radius_plot(kics,rms,radii,mass,logg,true_logg,rad_pos_err,rad_neg_err):
 	from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 	plt.rc('font', size=20)                  # controls default text sizes
@@ -920,10 +1187,17 @@ def get_mass_radius_plot(kics,rms,radii,mass,logg,true_logg,rad_pos_err,rad_neg_
 	plt.rc('figure', titlesize=15)           # fontsize of the figure title
 	plt.rc('axes', linewidth=2)    
 	
-	print('Making Mass-Radius plot:')
-	print('---Logg error to use:',rms)
+	# print(len(kics),len(radii),len(mass))
+	idx=np.where((mass>3.5) )[0]
+	print('# of stars w/ M>3.5',len(idx))
+	idx=np.where((mass>4) )[0]
+	print('# of stars w/ M>4',len(idx))
+	print(len(radii),len(mass),len(true_logg),len(logg))
+	print(mass[idx])
+	print(abs(true_logg-logg)[idx])
+
+	#print(list(np.array(kics[idx]).astype(int)))
 	
-	mass_errp,mass_errn=get_mass_error(radii,mass,logg,rad_pos_err,rad_neg_err,logg_pos_err,logg_neg_err)
 	# ax=plt.subplot(121)
 	# bins=np.linspace(0,1,20)
 	# plt.hist(mass_errp,bins=bins)
@@ -958,28 +1232,50 @@ def get_mass_radius_plot(kics,rms,radii,mass,logg,true_logg,rad_pos_err,rad_neg_
 	ax_histy = plt.axes(rect_histy)
 	ax_histy.tick_params(direction='out', labelleft=False,labelright=True,labeltop=True,labelbottom=False,length=4)
 	cbaxes = fig.add_axes([0.08, 0.1, 0.02, 0.6])  # This is the position for the colorbar
-	xy = np.vstack([mass,radii])
-	z = gaussian_kde(xy)(xy)
+
+	wnoise_frac=pd.read_csv('LLR_gaia/pande_wnoise_frac.txt',delimiter=' ',names=['KICID','Fraction','Radius'])
 	
+	fracs=[]
+	for kic in kics:
+		kic=str(int(kic))
+		if kic in np.array(wnoise_frac['KICID']):
+			row   =wnoise_frac.loc[wnoise_frac['KICID']==kic]
+			frac=float(row['Fraction'].item())
+			fracs.append(frac)
+		else:
+			continue 
+	print(len(fracs))
+	mass_errp,mass_errn=get_mass_error(radii,mass,logg,rad_pos_err,rad_neg_err,fracs)
+
+	# xy = np.vstack([mass,radii])
+	# z = gaussian_kde(xy)(xy)
+	z = np.array(fracs)
+	# plt.clf()
+	# plt.hist(z[idx])
+	# plt.show()
+	# exit()
+
+	zidx=np.where(z>0.)[0]
 	
 	#plt.figure(figsize=(13,10))
 	#gs  = gridspec.GridSpec(6, 4)
 	#ax1 = plt.subplot(gs[2:6, 0:4]) #spans 4 rows and 4 columns
 
 	# Scatter plot
-	ax_scatter.errorbar(mass,radii,ms=10,fmt='o',xerr=[mass_errn,mass_errp],yerr=[rad_neg_err*-1,rad_pos_err],markerfacecolor='none',markeredgecolor='none',ecolor='lightgrey')
-	im1=ax_scatter.scatter(mass,radii,s=20,c=z,zorder=10)
-	ax_scatter.set_xlim([0,16])
+	ax_scatter.errorbar(mass[zidx],radii[zidx],ms=10,fmt='o',xerr=[mass_errn[zidx],mass_errp[zidx]],yerr=[rad_neg_err[zidx]*-1,rad_pos_err[zidx]],markerfacecolor='none',markeredgecolor='none',ecolor='lightgrey')
+	im1=ax_scatter.scatter(mass[zidx],radii[zidx],s=20,c=z[zidx],zorder=10)
+	ax_scatter.set_xlim([0,15])
 	ax_scatter.set_ylim([0.5,5])
 	ax_scatter.minorticks_on()
-	rdot=' R$_{\\odot}$'
+	rdot='R$_{\\odot}$'
 	mdot='M$_{\\odot}$'
 	ax_scatter.set_xlabel('Mass [{}]'.format(mdot))
 	#ax_scatter.set_ylabel('Radius [{}]'.format(rdot))
 	plt.gca().invert_xaxis()
 
 	cb = plt.colorbar(im1,cax=cbaxes)#,location='left')
-	cb_label='$\\log_{10}$(Count)'
+	# cb_label='$\\log_{10}$(Count)'
+	cb_label='Fraction of PSD above white noise level'
 	cb.set_label(label=cb_label)#,fontsize=30)
 	cb.ax.tick_params(labelsize=20)
 	cbaxes.yaxis.set_ticks_position('left')
@@ -994,12 +1290,12 @@ def get_mass_radius_plot(kics,rms,radii,mass,logg,true_logg,rad_pos_err,rad_neg_
 	ax_scatter.set_xlim((5,0))
 	ax_scatter.set_ylim((0.5,5))
 
-	mass_bins  =np.arange(0,5,0.1)
-	radius_bins=np.arange(0.5,5,0.1)
+	mass_bins  =np.arange(0,5,0.05)
+	radius_bins=np.arange(0.5,5,0.05)
 	lw=2
 
-	xm,ym,_=ax_histx.hist(mass, bins=mass_bins,edgecolor="k",facecolor='lightgrey',linewidth=lw,histtype=u'step')
-	xr,yr,_=ax_histy.hist(radii, bins=radius_bins, orientation='horizontal',edgecolor="k",facecolor='lightgrey',histtype=u'step',linewidth=lw)
+	xm,ym,_=ax_histx.hist(mass[zidx], bins=mass_bins,edgecolor="k",facecolor='lightgrey',linewidth=lw,histtype=u'step')
+	xr,yr,_=ax_histy.hist(radii[zidx], bins=radius_bins, orientation='horizontal',edgecolor="k",facecolor='lightgrey',histtype=u'step',linewidth=lw)
 
 	# Find peak of histograms:
 	mass_peak   =ym[np.argmax(xm)]
@@ -1027,10 +1323,10 @@ def get_mass_radius_plot(kics,rms,radii,mass,logg,true_logg,rad_pos_err,rad_neg_
 	ax_scatter.yaxis.set_major_locator(ticker.MultipleLocator(1.))
 	ax_scatter.grid(which='both',linestyle=':', linewidth='0.5', color='grey',alpha=0.2)
 	ax_scatter.tick_params(which='minor', # Options for both major and minor ticks
-	                top='False', # turn off top ticks
-	                left='True', # turn off left ticks
-	                right='False',  # turn off right ticks
-	                bottom='True', # turn off bottom ticks
+	                top=False, # turn off top ticks
+	                left=True, # turn off left ticks
+	                right=False,  # turn off right ticks
+	                bottom=True, # turn off bottom ticks
 	                length=mnlength)
 	ax_scatter.tick_params(which='major',labelsize=20,length=mjlength)
 
@@ -1040,13 +1336,13 @@ def get_mass_radius_plot(kics,rms,radii,mass,logg,true_logg,rad_pos_err,rad_neg_
 	ax_histx.grid(which='both',linestyle=':', linewidth='0.5', color='grey',alpha=0.2)
 	ax_histx.yaxis.set_major_locator(ticker.MultipleLocator(100))
 	ax_histx.tick_params(which='major', # Options for both major and minor ticks
-	                top='True', # turn off top ticks
-	                left='True', # turn off left ticks
-	                right='False',  # turn off right ticks
-	                bottom='False', # turn off bottom ticks
+	                top=True, # turn off top ticks
+	                left=True, # turn off left ticks
+	                right=False,  # turn off right ticks
+	                bottom=False, # turn off bottom ticks
 	                labelsize=20,length=mjlength)
-	ax_histx.tick_params(which='minor',bottom='off',left='True',top='True',length=mnlength)
-	ax_histx.set_yticks([100,200,300,400])#, [100,200])
+	ax_histx.tick_params(which='minor',bottom=False,left=True,top=True,length=mnlength)
+	ax_histx.set_yticks([100,200,300])#, [100,200])
 
 	# Radius Histogram:
 	ax_histy.minorticks_on()
@@ -1055,33 +1351,51 @@ def get_mass_radius_plot(kics,rms,radii,mass,logg,true_logg,rad_pos_err,rad_neg_
 	ax_histy.grid(which='both',linestyle=':', linewidth='0.5', color='grey',alpha=0.2)
 
 	ax_histy.tick_params(which='major', # Options for both major and minor ticks
-	                top='True', # turn off top ticks
-	                left='False', # turn off left ticks
-	                right='True',  # turn off right ticks
-	                bottom='False', # turn off bottom ticks
+	                top=True, # turn off top ticks
+	                left=False, # turn off left ticks
+	                right=True,  # turn off right ticks
+	                bottom=False, # turn off bottom ticks
 	                labelsize=20,length=mjlength)
-	ax_histy.tick_params(which='minor',bottom='False',left='False',top='True',right='True',length=mnlength)
-	ax_histy.set_xticks([100,200])#, [100,200])
+	ax_histy.tick_params(which='minor',bottom=False,left=False,top=True,right=True,length=mnlength)
+	ax_histy.set_xticks([50,100,150])#, [100,200])
 	
 	plt.tight_layout()
-	plt.savefig('mr0.pdf',dpi=100)
+	plt.savefig('gaia_mass_radius.png',dpi=100,bbox_inches='tight')
 	plt.show(False)
 
-	unc_below1=len(np.where((mass_errp/mass)<0.1)[0])/len(mass)
-	unc_below2=len(np.where((mass_errp/mass)<0.15)[0])/len(mass)
-	frac_error=np.median((mass_errp/mass))
+	unc_below1p=len(np.where((mass_errp/mass)>0.1)[0])#/len(mass)
+	unc_below2p=len(np.where((mass_errp/mass)<0.15)[0])/len(mass)
+	unc_below1n=len(np.where((mass_errn/mass)<0.1)[0])/len(mass)
+	unc_below2n=len(np.where((mass_errn/mass)<0.15)[0])/len(mass)
+	frac_errorp=np.median((mass_errp/mass))
+	frac_errorn=np.median((mass_errn/mass))
 	print('Mass stats:')
 	print('---Max mass:',np.max(mass),'Min mass:',np.min(mass))
+	print('---Frac. of stars with frac uncertainty above 0.1:',unc_below1p,unc_below1p/len(mass)*100,'%')
+	print('---Frac. of stars with frac uncertainty below 0.15:',unc_below2p)
+	print('---Median',np.median(mass_errn),np.median(mass_errp))
+	print('---Max error:',np.max(mass_errn),np.max(mass_errp))
+	print('---Min error:',np.min(mass_errn),np.min(mass_errp))
+	print('---Median of frac. error:',frac_errorp,frac_errorn)
+	print('---Max frac. error',np.max(mass_errp/mass),np.max(abs(mass_errn)/mass))
+	print('---Min frac. error',np.min(mass_errp/mass),np.min(abs(mass_errn)/mass))
+	idx=np.where((mass>3.5) )[0]
+	print('---# of stars above 3.5 solmass:',len(idx))
+	
+	print('Radius stats:')
 	print('---Max radius:',np.max(radii),'Min radius:',np.min(radii))
-	print('---Frac. of stars with frac uncertainty below 0.1:',unc_below1)
-	print('---Frac. of stars with frac uncertainty below 0.15:',unc_below2)
-	print('---Median of frac. uncertainty:',frac_error)
-	print('---Max frac. error',np.max(mass_errp/mass))
-	print('---Min frac. error',np.min(mass_errp/mass))
-
+	print('---Median error:',np.median(abs(rad_neg_err)),np.median(rad_pos_err))
+	print('---Min error:',np.min(abs(rad_neg_err)),np.min(rad_pos_err))
+	print('---Max error:',np.max(abs(rad_neg_err)),np.max(rad_pos_err))
+	print('---Median of frac. error:',np.median((rad_neg_err/radii)),np.median((rad_pos_err/radii)))
+	print('---Max frac. error',np.max(rad_pos_err/radii),np.max(abs(rad_neg_err)/radii))
+	print('---Min frac. error',np.min(rad_pos_err/radii),np.min(abs(rad_neg_err)/radii))
+	
+	
 	mass_outside=np.where(np.logical_or(mass>5, mass<0))[0]
 	radius_outside=np.where(np.logical_or(radii>5, radii<0.5))[0]
 	total_outside=len(mass_outside)+len(radius_outside)
+	print()
 	print('---Total # of stars outside mass-radius plot',total_outside)
 	# exit()
     # Error Analysis:\n",
@@ -1184,7 +1498,7 @@ def get_mass_outliers(kics,radii,mass,logg,true_logg,rad_pos_err,rad_neg_err,log
 	cax3.xaxis.set_label_position('bottom')
 
 	plt.tight_layout()
-	plt.savefig('11.png',dpi=100)
+	# plt.savefig('11.png',dpi=100)
 	plt.show(False)
 	# exit()
 
@@ -1216,7 +1530,7 @@ def compare_travis_mass(kics,radii,mass,logg,true_logg,rad_pos_err,rad_neg_err,l
 	bins=np.arange(-4.5,2.,0.5)
 	plt.hist(diff,bins=80)
 	plt.xlabel('Berger - Our Mass [M$_{\\odot}$]')
-	plt.savefig('hist_of_mass_diff.png')
+	# plt.savefig('hist_of_mass_diff.png')
 	plt.show(False)
 
 	logg_neg_err=logg_neg_err*-1
@@ -1322,7 +1636,7 @@ def compare_travis_mass(kics,radii,mass,logg,true_logg,rad_pos_err,rad_neg_err,l
 	
 	plt.tight_layout()
 	plt.subplots_adjust(hspace=0.4)
-	plt.savefig('Travis_vs_Our_Mass_diff_in_mass.png',dpi=100)
+	# plt.savefig('Travis_vs_Our_Mass_diff_in_mass.png',dpi=100)
 	plt.show(False)
 	# exit()
 
@@ -1528,7 +1842,7 @@ def get_hr_plot(kics,radii,mass,infer_logg,true_logg,rad_pos_err,rad_neg_err,log
 	plt.subplots_adjust(wspace=0.2) 
 
 	
-	plt.savefig('HR_Diagram_from_Mass_better.png',dpi=100)
+	# plt.savefig('HR_Diagram_from_Mass_better.png',dpi=100)
 	plt.show(False)
 	# exit()
 
@@ -1652,7 +1966,7 @@ def get_mass_lum_plot(kics,radii,mass,logg,true_logg,rad_pos_err,rad_neg_err,log
 	plt.tight_layout()
 	plt.subplots_adjust(hspace=0.4)
 
-	plt.savefig('mass_lum.png',dpi=100)
+	# plt.savefig('mass_lum.png',dpi=100)
 	plt.show(False)
 	# exit()
 
@@ -1772,10 +2086,10 @@ def get_wnoise_frac(outliers,keep,testfiles,true,labelm1):
 	cb1.ax.tick_params()
 
 	plt.tight_layout()
-	plt.savefig('0pande_wnoise_frac.png')
+	# plt.savefig('0pande_wnoise_frac.png')
 
 def main(start):
-	dirr='/Users/maryumsayeed/Desktop/HuberNess/mlearning/powerspectrum/jan2020_pande_sample/'
+	dirr='/Users/maryumsayeed/Desktop/HuberNess/mlearning/powerspectrum/LLR_gaia/'
 	average=np.load(dirr+'average.npy')
 	end=len(average)
 	testlabels=np.load(dirr+'testlabels.npy')[start:end]
@@ -1785,8 +2099,8 @@ def main(start):
 	chi2_vals =np.load(dirr+'min_chi2.npy')
 	
 	print('Size of saved data:',len(testlabels),len(average),len(labels_m1),len(labels_m2),len(spectra_m1))
-	dp='jan2020_pande_sample/'
-	da='jan2020_astero_sample/'
+	dp='LLR_gaia/'
+	da='LLR_seismic/'
 	train_file_names =[dp+'pande_pickle_1',dp+'pande_pickle_2',dp+'pande_pickle_3',da+'astero_final_sample_1',da+'astero_final_sample_2',da+'astero_final_sample_3',da+'astero_final_sample_4']
 	train_file_pickle=[i+'_memmap.pickle' for i in train_file_names]
 	train_file_txt   =[i+'.txt' for i in train_file_names]
@@ -1795,55 +2109,88 @@ def main(start):
 	all_labels,all_data,total_stars,all_files=gettraindata(train_file_txt,train_file_pickle)
 	all_labels,all_data,all_files=all_labels[start:start+end],all_data[start:start+end],all_files[start:start+end]
 	
-	#init_plots(testlabels,labels_m1,labels_m2)
+	# init_plots(testlabels,labels_m1,labels_m2,all_files)
+	# exit()
 	radii,avg_psd       =get_avg_psd(all_files,all_data)
 	keep_idx_1          =fit_power_radius(radii,avg_psd)
-	keep_idx_2,chi2     =remove_high_chi2(chi2_vals)
-	keep,badidx,diff,rms,rmsfinal,outliers  =final_result(keep_idx_1,keep_idx_2,testlabels,labels_m1,labels_m2)
-	# result_hists=investigate_outliers(outliers,keep,all_files,testlabels,labels_m1)
-	#
-	# get_wnoise_frac(outliers,keep,all_files,testlabels,labels_m1)
-	# exit()
+	keep_idx_2,chi2     =remove_high_rss(chi2_vals)
+	keep,badidx,diff,rms,rmsfinal,std,outliers  =final_result(keep_idx_1,keep_idx_2,testlabels,labels_m1,labels_m2)
 	
 	print('Max/Min',np.max(testlabels[keep]),np.min(testlabels[keep]))
-	# check_models(keep,badidx,testlabels,labels_m1,labels_m2,spectra_m1,all_data,all_files)
 
+	# check_models(keep,badidx,testlabels,labels_m1,labels_m2,spectra_m1,all_data,all_files)
+	rfit=keep_idx_1
+	cfit=keep_idx_2
+	a=np.arange(0,len(radii),1)
+	
+	r=list(set(a)-set(rfit))
+	c=list(set(a)-set(cfit))
+	b=list(set(r) & set(c))
+	
 	print('=== rms:',rmsfinal)
+	print('=== mad_std:',std)
 	print('=== original:',len(radii))
-	print('=== after cleaning:',len(keep))
+	print('=== final # of stars:',len(keep))
+	print('=== stars removed by fitting power vs. radii:',len(r))
+	print('=== stars removed by analzying RSS:',len(c))
+	print('=== stars common in both removal steps:',len(b))
+	print('=== total stars removed:',len(r)+len(c)-len(b))
 	print('=== outliers (diff>{}):'.format(diff),len(badidx))
 	print('=== fraction of outliers:',len(badidx)/len(keep))
-	
-	exit()
-	oparams,radii,mass,true_logg,infer_logg,rad_pos_err,rad_neg_err,logg_pos_err,logg_neg_err=get_mass(keep,testlabels,labels_m1,labels_m2,all_files)
-	logg_pos_err,logg_neg_err=[rms]*len(mass),[-rms]*len(mass)
+	print('=== logg range:',np.min(testlabels[keep]),np.max(testlabels[keep]))
 
-	# print(len(radii),len(outliers),len(keep),len(oparams[0]))
+	oparams,radii,mass,true_logg,infer_logg,rad_pos_err,rad_neg_err,tlogg_pos_err,tlogg_neg_err=get_mass(keep,testlabels,labels_m1,labels_m2,all_files)
+	
 	# Save chi2 values for appendix plots:
 	# ascii.write([(oparams[0]).astype(int),chi2_vals[keep]],'pande_chi2.txt',names=['KICID','Chi2'],overwrite=True)
 	# np.savetxt('pande_chi2.txt',np.array([(,]).T,fmt='%s')
 
+	# result_hists=investigate_outliers(outliers,keep,all_files,testlabels,labels_m1)
+	# pplot_outliers_together(keep,outliers,testlabels,labels_m1,labels_m2,tlogg_pos_err,tlogg_neg_err,result_hists)
+
 	# true_mass,tmass_errp,tmass_errn=get_true_mass(oparams[0])
-
-	# exit()
-	# get_table(oparams,radii,mass,true_logg,infer_logg,rad_pos_err,rad_neg_err,rmsfinal,logg_pos_err,logg_neg_err,badidx,true_mass,tmass_errp,tmass_errn)
-	
+	# get_table(oparams,radii,mass,true_logg,infer_logg,rad_pos_err,rad_neg_err,std,tlogg_pos_err,tlogg_neg_err,badidx,true_mass,tmass_errp,tmass_errn)
 	# paper_plot(keep,outliers,testlabels,labels_m1,labels_m2,logg_pos_err,logg_neg_err)
-	# logg_pos_err,logg_neg_err=[0.15]*len(keep),[-0.15]*len(keep)
-	# pplot_outliers_together(keep,outliers,testlabels,labels_m1,labels_m2,logg_pos_err,logg_neg_err,result_hists)
 
-	# exit()
-	print(rms)
-	print(rad_pos_err,rad_neg_err)
-	get_mass_radius_plot(oparams[0],rms,radii,mass,infer_logg,true_logg,rad_pos_err,rad_neg_err,logg_pos_err,logg_neg_err)
+	a1=np.where((labels_m1[keep]-(testlabels[keep])>0) & (testlabels[keep]>3.5) & (testlabels[keep]<4.2))[0]
+	b1=np.where((testlabels[keep]>3.5) & (testlabels[keep]<4.2))[0]
+
+	a2=np.where(((labels_m1[keep]-testlabels[keep])>0) & (testlabels[keep]>4.2))[0]
+	b2=np.where( (testlabels[keep]>4.2))[0]
+	print('\n')
+	print('# b/w 3.5-4.2:',len(b1),'# b/w 3.5-4.2 & pred>true',len(a1),len(a1)/len(b1))
+	print('# > 4.2:',len(b2),'# > 4.2 & pred>true',len(a2),len(a2)/len(b2))
+
+	a3=np.where(testlabels[keep]>3.5)[0]
+	a4=np.where((testlabels[keep]>3.8))[0]
+	a5=np.where((labels_m1[keep]>3.8))[0]
+	print('stars above 3.5',len(a3),'true b/w 4.1-4.3',len(a4),'pred b/w 4.1-4.3',len(a5))
+
+	#print('T-P>0','T>P',len(a3),len(a3)/len(np.where((testlabels[keep]>4.2))[0]))
+	#print('T-P<0','T<P',len(np.where((testlabels[keep]-labels_m1[keep])<0)[0]),len(np.where((testlabels[keep]-labels_m1[keep])<0)[0])/len(keep)*100)
+	idx=np.where((testlabels[keep]>3.5))[0]
+	print(min(testlabels[keep][idx]),max(testlabels[keep][idx]))
+	print(min(labels_m1[keep][idx]),max(labels_m1[keep][idx]))
+
+	idx2=np.where((testlabels[keep][idx]>4.1) & (testlabels[keep][idx]<4.3))[0]
+
+	idx3=np.where((labels_m1[keep][idx]>4.1) & (labels_m1[keep][idx]<4.3))[0]
+	
+	get_mass_radius_plot(oparams[0],std,radii,mass,infer_logg,true_logg,rad_pos_err,rad_neg_err)
+	exit()
+	plt.clf()
+	plt.subplot(121)
+	plt.hist(rad_pos_err,bins=50)
+	plt.subplot(122)
+	plt.hist(rad_neg_err,bins=50)
+	# plt.savefig('rad_error_hist.png')
+	print()
 	exit()
 	# get_mass_lum_plot(oparams[0],radii,mass,infer_logg,true_logg,rad_pos_err,rad_neg_err,logg_pos_err,logg_neg_err)
 	# get_mass_outliers(oparams[0],radii,mass,infer_logg,true_logg,rad_pos_err,rad_neg_err,logg_pos_err,logg_neg_err)
 	# get_hr_plot(oparams[0],radii,mass,infer_logg,true_logg,rad_pos_err,rad_neg_err,logg_pos_err,logg_neg_err)
 	# compare_travis_mass(oparams[0],radii,mass,infer_logg,true_logg,rad_pos_err,rad_neg_err,logg_pos_err,logg_neg_err)
 	exit()
-
-
 
 main(0)
 

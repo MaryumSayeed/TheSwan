@@ -2,25 +2,25 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import re
+from astropy.stats import mad_std
 
-pcat=pd.read_csv('Pande_Catalogue.txt',skiprows=1,usecols=[0,16],index_col=False,delimiter=';',names=['KIC','Outlier'])
-acat=pd.read_csv('Astero_Catalogue.txt',skiprows=1,usecols=[0,16],index_col=False,delimiter=';',names=['KIC','Outlier'])
-# print(pcat,acat)
+pcat=pd.read_csv('LLR_gaia/Gaia_Catalogue.txt',skiprows=1,usecols=[0,19],index_col=False,delimiter=';',names=['KIC','Outlier'])
+acat=pd.read_csv('LLR_seismic/Seismic_Catalogue.txt',skiprows=1,usecols=[0,19],index_col=False,delimiter=';',names=['KIC','Outlier'])
 
 acat=acat[acat['Outlier']==0]
 pcat=pcat[pcat['Outlier']==0]
-# print(pcat,acat)
+
 pcat,acat=np.array(pcat['KIC']),np.array(acat['KIC'])
 print(len(pcat),len(acat))
-# exit()
-afile1=np.loadtxt('twothirds_astero/astero_final_sample_1.txt',dtype=str,delimiter=' ')#,usecols=[0])
-afile2=np.loadtxt('twothirds_astero/astero_final_sample_2.txt',dtype=str,delimiter=' ')#,usecols=[0])
-afile3=np.loadtxt('twothirds_astero/astero_final_sample_3.txt',dtype=str,delimiter=' ')#,usecols=[0])
-afile4=np.loadtxt('twothirds_astero/astero_final_sample_4.txt',dtype=str,delimiter=' ')#,usecols=[0])
 
-pfile1=np.loadtxt('twothirds_pande/pande_pickle_1.txt',dtype=str,delimiter=' ')#,usecols=[0])
-pfile2=np.loadtxt('twothirds_pande/pande_pickle_2.txt',dtype=str,delimiter=' ')#,usecols=[0])
-pfile3=np.loadtxt('twothirds_pande/pande_pickle_3.txt',dtype=str,delimiter=' ')#,usecols=[0])
+afile1=np.loadtxt('baseline_cuts/astero_final_sample_1.txt',dtype=str,delimiter=' ')#,usecols=[0])
+afile2=np.loadtxt('baseline_cuts/astero_final_sample_2.txt',dtype=str,delimiter=' ')#,usecols=[0])
+afile3=np.loadtxt('baseline_cuts/astero_final_sample_3.txt',dtype=str,delimiter=' ')#,usecols=[0])
+afile4=np.loadtxt('baseline_cuts/astero_final_sample_4.txt',dtype=str,delimiter=' ')#,usecols=[0])
+
+pfile1=np.loadtxt('baseline_cuts/pande_pickle_1.txt',dtype=str,delimiter=' ')#,usecols=[0])
+pfile2=np.loadtxt('baseline_cuts/pande_pickle_2.txt',dtype=str,delimiter=' ')#,usecols=[0])
+pfile3=np.loadtxt('baseline_cuts/pande_pickle_3.txt',dtype=str,delimiter=' ')#,usecols=[0])
 
 astero=np.concatenate([afile1,afile2,afile3,afile4],axis=0)
 pande =np.concatenate([pfile1,pfile2,pfile3],axis=0)
@@ -28,13 +28,13 @@ pande =np.concatenate([pfile1,pfile2,pfile3],axis=0)
 astero_files,astero_true=astero[:,0],(astero[:,1]).astype(np.float)
 pande_files,pande_true  =pande[:,0],(pande[:,1]).astype(np.float)
 
-
 # get KICIDs in Pande sample:
 pande_index=[]
 for i in range(0,len(pande_files)): 
 	file=pande_files[i]
 	kic=re.search('kplr(.*)-', file).group(1)
 	kic=int(kic.lstrip('0'))
+
 	if kic in pcat:
 		pande_index.append(i)
 
@@ -55,20 +55,21 @@ def returnscatter(diffxy):
 
 def get_og_ivals():
 	# load inferred values for full light curve analysis:
-	adir='jan2020_astero_sample'
-	pdir='jan2020_pande_sample'
+	adir='LLR_seismic/'
+	pdir='LLR_gaia/'
 
-	ia=np.load(adir+'/labels_m1.npy')[astero_index]
-	ip=np.load(pdir+'/labels_m1.npy')[pande_index]
+	ia=np.load(adir+'labels_m1.npy')[astero_index]
+	ip=np.load(pdir+'labels_m1.npy')[pande_index]
 	return ia,ip
 
 
 def get_inferred_vals(frac):
-	adir='{}_astero/{}_of_data'.format(frac,frac)
-	pdir='{}_pande/{}_of_data'.format(frac,frac)
+	adir='baseline_cuts/{}_days/LLR_seismic/'.format(frac,frac)
+	pdir='baseline_cuts/{}_days/LLR_gaia/'.format(frac,frac)
 
-	ia=np.load(adir+'/labels_m1.npy')[astero_index]
-	ip=np.load(pdir+'/labels_m1.npy')[pande_index]
+	ia=np.load(adir+'labels_m1.npy')[astero_index]
+	ip=np.load(pdir+'labels_m1.npy')[pande_index]
+
 	return ia,ip
 
 
@@ -87,15 +88,17 @@ def get_plot(true,infer,labelname,n):
 	# plt.plot(true,true,c='k',linestyle='--')
 	# plt.scatter(true,infer,s=10,label=labelname)
 	# bf,rf=get_text(ax,infer,true)
+	std=mad_std(infer-true)
 	bias,rms=returnscatter(infer-true)
+	print(labelname,std,rms)
 	# plt.legend(loc='lower right')
-	return bias,rms
+	return bias,rms,std
 
 af,pf=get_og_ivals()
-a2,p2=get_inferred_vals('half')
-a3,p3=get_inferred_vals('third')
-a4,p4=get_inferred_vals('fourth')
-a23,p23=get_inferred_vals('twothirds')
+a14,p14=get_inferred_vals('14')
+a27,p27=get_inferred_vals('27')
+a48,p48=get_inferred_vals('48')
+a65,p65=get_inferred_vals('65')
 
 pt=pande_true[pande_index]
 at=astero_true[astero_index]
@@ -110,53 +113,69 @@ plt.rc('ytick', labelsize=12)            # fontsize of the tick labels
 plt.rc('figure', titlesize=12)           # fontsize of the figure title
 plt.rc('axes', linewidth=1)    
 plt.rc('axes', axisbelow=True)
+sig_rms=r'$\sigma$'
+sig_mad=r'$\sigma_{\mathrm{mad}}$'
+ystr=sig_rms+' [dex]'
 
-xls=['24','32','48','65','97'] #[24,32,48,97]
+rmsc  ='#404788FF'
+stdc = '#55C667FF'
+	
+xls=['14','27','48','65','96'] 
 
 # PANDE:
-pbf,prf=get_plot(pt,pf,'Full',1)
-pb23,pr23=get_plot(pt,p23,'Two Thirds',5)
-pb2,pr2=get_plot(pt,p2,'Half',2)
-pb3,pr3=get_plot(pt,p3,'Third',3)
-pb4,pr4=get_plot(pt,p4,'Fourth',4)
+print('\n','GAIA')
+pbf,prf,psf=get_plot(pt,pf,'Full',1)
+pb14,pr14,ps14=get_plot(pt,p14,'14',5)
+pb27,pr27,ps27=get_plot(pt,p27,'27',2)
+pb48,pr48,ps48=get_plot(pt,p48,'48',3)
+pb65,pr65,ps65=get_plot(pt,p65,'65',4)
 
 # ASTERO
-bf,arf=get_plot(at,af,'Full',1)
-b23,ar23=get_plot(at,a23,'Two Thirds',5)
-b2,ar2=get_plot(at,a2,'Half',2)
-b3,ar3=get_plot(at,a3,'Third',3)
-b4,ar4=get_plot(at,a4,'Fourth',4)
+print('\n','SEISMIC')
+bf,arf,asf=get_plot(at,af,'Full',1)
+b14,ar14,as14=get_plot(at,a14,'14',5)
+b27,ar27,as27=get_plot(at,a27,'27',2)
+b48,ar48,as48=get_plot(at,a48,'48',3)
+b65,ar65,as65=get_plot(at,a65,'65',4)
 
-fig=plt.figure(figsize=(5,10))
-xls=['24','32','48','65','97'] #[24,32,48,97]
+fig=plt.figure(figsize=(5,8))
+xls=['14','27','48','65','96'] 
 
 ax3=plt.subplot(211)
 plt.grid(which='major', axis='y', linestyle='--')
-plt.bar(xls,[pr4,pr3,pr2,pr23,prf],width=0.7,color='grey',edgecolor='k')
-plt.ylabel('RMS [dex]',labelpad=10)
-STR='Pande'
-t=ax3.text(0.79,0.92,s=STR,color='k',ha='left',va='center',transform = ax3.transAxes)
+plt.bar(xls,[pr14,pr27,pr48,pr65,prf],width=0.7,color=rmsc,edgecolor='k',label=sig_rms,fill='False',hatch='/',alpha=0.7)
+plt.bar(xls,[ps14,ps27,ps48,ps65,psf],width=0.7,color=stdc,edgecolor='k',label=sig_mad,hatch='\\',alpha=0.7)
+plt.ylabel(ystr)
+
+STR='Gaia'
+t=ax3.text(0.05,0.05,s=STR,color='k',ha='left',va='bottom',transform = ax3.transAxes)
 t.set_bbox(dict(facecolor='white',edgecolor='k'))#, alpha=0.5, edgecolor='red'))
 plt.minorticks_on()
-ax3.tick_params(axis='x', which='minor',bottom='off')
+ax3.tick_params(axis='x', which='minor',bottom=False)
 
 ax4=plt.subplot(212)
 plt.grid(which='major', axis='y', linestyle='--')
-plt.bar(xls,[ar4,ar3,ar2,ar23,arf],width=0.7,color='grey',edgecolor='k')
-# plt.ticklabel_format(style='sci', axis='y', scilimits=(0,0))
-# ax4.yaxis.offsetText.set_visible(False)
-plt.ylabel('RMS [dex]',labelpad=2)#  ')
-STR='Asteroseismic'
-t=ax4.text(0.57,0.92,s=STR,color='k',ha='left',va='center',transform = ax4.transAxes)
+plt.bar(xls,[ar14,ar27,ar48,ar65,arf],width=0.7,color=rmsc,edgecolor='k',label=sig_rms,fill='False',hatch='/',alpha=0.7)
+plt.bar(xls,[as14,as27,as48,as65,asf],width=0.7,color=stdc,edgecolor='k',label=sig_mad,hatch='\\',alpha=0.7)
+plt.ylabel(ystr)
+
+STR='Seismic'
+t=ax4.text(0.05,0.05,s=STR,color='k',ha='left',va='bottom',transform = ax4.transAxes,zorder=1)
 t.set_bbox(dict(facecolor='white',edgecolor='k'))#, alpha=0.5, edgecolor='red'))
 plt.minorticks_on()
-ax4.tick_params(axis='x', which='minor',bottom='off')
-ax4.tick_params(axis='x', which='major',top='on',direction='inout',length=6)
+ax4.tick_params(axis='x', which='minor',bottom=False)
+plt.legend(loc='upper right')
+#ax4.tick_params(axis='x', which='major',top='on',direction='inout',length=6)
 
 ax4.set_xlabel('Time-series length [days]')#,labelpad=10)
 fig.tight_layout()
-
-print(pr3/prf,pr4/prf)
+pys=[pr14,pr27,pr48,pr65,prf]
+ays=[ar14,ar27,ar48,ar65,arf]
+for i in range(0,len(xls)):
+	print(xls[i],'P',pys[i],'A',ays[i])
 plt.show(False)
-# plt.savefig('timeseries_paper_plot.pdf',dpi=100)
+
+print((as14-asf)/asf)
+print(as14,asf)
+# plt.savefig('timeseries_paper_plot.png',dpi=100,bbox_inches='tight')
 exit()

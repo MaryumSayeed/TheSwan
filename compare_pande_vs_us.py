@@ -2,15 +2,51 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import re
+from astropy.stats import mad_std
+
 psdir='/Users/maryumsayeed/Desktop/HuberNess/mlearning/powerspectrum/'
 # pande_results=np.loadtxt(psdir+'Pande_2018.txt',delimiter=',',skiprows=1,usecols=[8,9],dtype=float)
 pande18  =pd.read_csv(psdir+'Pande_2018.txt',delimiter=',',skiprows=1,usecols=[0,8,9],names=['KIC','Logg','Logg_err'])
 pande_kics=pande18['KIC']
+pande_pred=np.array(pande18['Logg'])
+
+mathur_header=['KIC','loggi','e_loggi','r_loggi','n_loggi','logg','E_logg','e_logg','Mass','E_Mass','e_Mass']
+mathur_2017 =pd.read_csv('/Users/maryumsayeed/Desktop/HuberNess/mlearning/hrdmachine/mathur_2017.txt',delimiter=';',skiprows=54,names=mathur_header)
+mathur_2017 =mathur_2017[mathur_2017['n_loggi']=='AST'] #include only asteroseismic measurements
+mathur_kics=np.array(mathur_2017['KIC'])
+mathur_loggs=np.array(mathur_2017['loggi'])
+
+yu_header   =['KICID','Teff','err','logg','logg_err','Fe/H','err','M_noCorrection','M_nocorr_err','R_noCorrection','err','M_RGB','M_RGB_err','R_RGB','err','M_Clump','M_Clump_err','R_Clump','err','EvoPhase']
+yu_2018     =pd.read_csv('/Users/maryumsayeed/Desktop/HuberNess/mlearning/hrdmachine/rg_yu.txt',delimiter='|',names=yu_header,skiprows=1,index_col=False)#,names=yu_header)
+yu_kics=np.array(yu_2018['KICID'])
+yu_loggs=np.array(yu_2018['logg'])
+pande_true=np.zeros(len(pande_kics))
+for i in range(0,len(pande_kics)):
+	kic=pande_kics[i]
+	print(type(kic),type(yu_kics[0]))
+	if kic in yu_kics:
+		idx=np.where(yu_kics==kic)[0]
+		tlogg=yu_loggs[idx]
+		pande_true[i]=tlogg
+	elif kic in mathur_kics:
+		idx=np.where(mathur_kics==kic)[0]
+		tlogg=mathur_loggs[idx]
+		pande_true[i]=tlogg
+	else:
+		pande_true[i]=-999
+
+
+idx=np.where(pande_true>0)[0]
+pande_true,pande_pred=pande_true[idx],pande_pred[idx]
+print(mad_std(pande_pred-pande_true))
+print(np.std(pande_pred-pande_true))
+exit()
+
 # print(pande18[0:3])
 # print(np.min(pande18[:,0]))
 # print(np.max(pande18[:,0]))
 # exit()
-adir=psdir+'jan2020_astero_sample/'
+adir=psdir+'LLR_seismic/'
 astero_files1=np.loadtxt(adir+'astero_final_sample_1.txt',usecols=[0],dtype='str')
 astero_files2=np.loadtxt(adir+'astero_final_sample_2.txt',usecols=[0],dtype='str')
 astero_files3=np.loadtxt(adir+'astero_final_sample_3.txt',usecols=[0],dtype='str')
@@ -20,7 +56,7 @@ astero_files4=np.loadtxt(adir+'astero_final_sample_4.txt',usecols=[0],dtype='str
 
 # astero_infer=np.load(psdir+'jan2020_astero_sample/labels_m1.npy')
 # astero_true=np.load(psdir+'jan2020_astero_sample/testlabels.npy')[6135:]
-filename='Astero_Catalogue.txt'
+filename='LLR_seismic/Seismic_Catalogue.txt'
 df=pd.read_csv(filename,index_col=False,delimiter=';')
 df=df[df['Outlier']==0]
 astero_true=np.array(df['True_Logg'])
@@ -73,7 +109,7 @@ def returnscatter(diffxy):
     return bias, rms
 
 ast_true,ast_infer,pande_infer=np.array(ast_true),np.array(ast_infer),np.array(pande_infer)
-print(pande_infer)
+
 # exit()
 # plt.rc('font', family='serif')
 # plt.rc('text', usetex=True)
@@ -93,10 +129,11 @@ bias_below,rms_below=returnscatter(ast_infer[below]-ast_true[below])
 above=np.where((ast_true>3.5) & (abs(ast_true-ast_infer)<0.5))[0]
 bias_above,rms_above=returnscatter(ast_infer[above]-ast_true[above])
 b,r=returnscatter(ast_infer-ast_true)
+std  =mad_std(ast_infer-ast_true)
 
-plt.text(1.95,4.5,r'  $\leq 3.5$: RMS = '+str(round(rms_below,2))+' Bias = '+str('{0:.2f}'.format(bias_below)), fontsize=12, ha='left',va='bottom')
-plt.text(1.95,4.3,r'  $> 3.5$: RMS = '+str(round(rms_above,2))+' Bias = '+str('{0:.2f}'.format(bias_above)), fontsize=12, ha='left',va='bottom')
-plt.text(1.95,4.1,'Overall: RMS = '+str(round(r,2))+' Bias = '+str('{0:.2f}'.format(b)), fontsize=12, ha='left',va='bottom')
+plt.text(1.95,4.5,r'$\log g$$< 3.5: \sigma$ = '+str(round(rms_below,2))+' Offset = '+str('{0:.2f}'.format(bias_below)), fontsize=12, ha='left',va='bottom')
+plt.text(1.95,4.3,r'$\log g \geq 3.5: \sigma$ = '+str(round(rms_above,2))+' Offset = '+str('{0:.2f}'.format(bias_above)), fontsize=12, ha='left',va='bottom')
+plt.text(1.95,4.1,'$\sigma$ = '+str(round(r,2))+r' $\sigma_{\mathrm{mad}}$'+' = {0:.2f}'.format(std)+' Offset = '+str('{0:.2f}'.format(b)), fontsize=12, ha='left',va='bottom')
 
 plt.xlim([1.9,4.7])
 plt.ylim([1.9,4.7])
@@ -116,14 +153,16 @@ plt.minorticks_on()
 plt.plot(astero_true,astero_true,c='k',linestyle='dashed',label='Asteroseismic Logg')
 plt.scatter(ast_true,pande_infer,c='k',s=10)
 
-above=np.where(ast_true>3.5)[0]
+above=np.where(ast_true>=3.5)[0]
 bias_below,rms_below=returnscatter(pande_infer[below]-ast_true[below])
 bias_above,rms_above=returnscatter(pande_infer[above]-ast_true[above])
 b,r=returnscatter(pande_infer-ast_true)
+std  =mad_std(pande_infer-ast_true)
+
 # +str('{0:.2f}'.format(rmsa))
-plt.text(1.95,4.5,r'  $\leq 3.5$: RMS = '+str('{0:.2f}'.format(rms_below))+' Bias = '+str('{0:.2f}'.format(bias_below)), fontsize=12, ha='left',va='bottom')
-plt.text(1.95,4.3,r'  $> 3.5$: RMS = '+str(round(rms_above,2))+' Bias = '+str('{0:.2f}'.format(bias_above)), fontsize=12, ha='left',va='bottom')
-plt.text(1.95,4.1,'Overall: RMS = '+str('{0:.2f}'.format(r))+' Bias = '+str('{0:.2f}'.format(b)), fontsize=12, ha='left',va='bottom')
+plt.text(1.95,4.5,r'$\log g$$< 3.5: \sigma$ = '+str('{0:.2f}'.format(rms_below))+' Offset = '+str('{0:.2f}'.format(bias_below)), fontsize=12, ha='left',va='bottom')
+plt.text(1.95,4.3,r'$\log g$$\geq 3.5: \sigma$ = '+str(round(rms_above,2))+' Offset = '+str('{0:.2f}'.format(bias_above)), fontsize=12, ha='left',va='bottom')
+plt.text(1.95,4.1,'$\sigma$ = '+str('{0:.2f}'.format(r))+r' $\sigma_{\mathrm{mad}}$'+' = {0:.2f}'.format(std)+' Offset = '+str('{0:.2f}'.format(b)), fontsize=12, ha='left',va='bottom')
 plt.xlim([1.9,4.7])
 plt.ylim([1.9,4.7])
 plt.xlabel('Asteroseismic Logg [dex]',fontsize=fs)
@@ -132,7 +171,7 @@ plt.ylabel('Pande Inferred Logg [dex]',fontsize=fs)
 mjlength=5
 mnlength=3
 
-ax2.tick_params(which='both', top='True', left='True', bottom='True',length=mjlength)#,width=1) 
+ax2.tick_params(which='both', top=True, left=True, bottom=True,length=mjlength)#,width=1) 
 ax2.tick_params(which='minor',axis='y',length=mnlength) 
 
 mjlength=7
@@ -153,7 +192,8 @@ savedir='/Users/maryumsayeed/Desktop/HuberNess/iPoster/'
 fig.tight_layout()
 plt.subplots_adjust(hspace=0)
 
-# plt.savefig(savedir+'pande2018_vs_us_new.png')#,dpi=50)
+# plt.savefig(savedir+'pande2018_vs_us_new.png',dpi=100,bbox_inches='tight')
+plt.savefig('pande2018_vs_us_new.png',dpi=100,bbox_inches='tight')
 
 
 plt.show(False)

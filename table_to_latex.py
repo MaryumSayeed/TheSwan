@@ -2,12 +2,12 @@ import pandas as pd
 import numpy as np
 import csv
 import matplotlib.pyplot as plt
-filename='Pande_Catalogue.txt'
+filename='LLR_gaia/Gaia_Catalogue.txt'
 kics = np.loadtxt(filename,skiprows=1,delimiter=';',usecols=[0],dtype=str)
 dat = np.loadtxt(filename,skiprows=1,delimiter=';',dtype=float)
 w=[]
 #='RMS: '+str('{0:.2f}'.format(rmsa))
-header = ['KICID', 'Kp', 'Teff', 'Radius','Radp','Radn','True_Logg','Loggp','Loggn','Inferred_Logg','True_Mass','TMassp','TMassn','Inferred_Mass','IMassp','IMassn','Outlier'] 
+header = ['KICID','Kp', 'Teff', 'Radius','Radp','Radn','True_Logg','Loggp','Loggn','Inferred_Logg','ILoggp','ILoggn','True_Mass','TMassp','TMassn','Inferred_Mass','IMassp','IMassn','SNR','Outlier'] 
 df = pd.read_csv(filename,delimiter=';',names=header,skiprows=1)
 
 print('Unsorted:',df.head(10))
@@ -40,7 +40,9 @@ for i in df.index[0:10]:
 	l,lp,ln=float(l),float(lp),float(ln)
 	l,lp,ln=str('{0:.2f}'.format(l)),'{+'+str('{0:.2f}'.format(lp))+'}','{'+str('{0:.2f}'.format(ln))+'}'
 
-	il=str('{0:.2f}'.format(float(df['Inferred_Logg'][i]))) #inferred logg
+	il,ilp,iln=df['Inferred_Logg'][i],df['ILoggp'][i],df['ILoggn'][i]
+	il,ilp,iln=float(il),float(ilp),float(iln)
+	il,ilp,iln=str('{0:.2f}'.format(il)),'{+'+str('{0:.2f}'.format(ilp))+'}','{-'+str('{0:.2f}'.format(iln))+'}'
 
 	tm,tmp,tmn=df['True_Mass'][i],df['TMassp'][i],df['TMassn'][i]
 	tm,tmp,tmn=float(tm),float(tmp),float(tmn)
@@ -52,11 +54,15 @@ for i in df.index[0:10]:
 
 	out=str(int(df['Outlier'][i]))
 
-	line=kic+d+kp+d+teff+d+r'${}^{}_{}$'.format(r,rp,rn)+d+'${}^{}_{}$'.format(l,lp,ln)+d+il+d+'${}^{}_{}$'.format(tm,tmp,tmn)+d+'${}^{}_{}$'.format(m,mp,mn)+d+out+'\\\\'
+
+	snr=str('{0:.2f}'.format(df['SNR'][i]))	
+
+	line=kic+d+kp+d+teff+d+r'${}^{}_{}$'.format(r,rp,rn)+d+'${}^{}_{}$'.format(l,lp,ln)+d+'${}^{}_{}$'.format(il,ilp,iln)+d+'${}^{}_{}$'.format(tm,tmp,tmn)+d+'${}^{}_{}$'.format(m,mp,mn)+d+snr+d+out+'\\\\'
+	print(line)
 	w.append(line)
 
 # Save format in file:
-outF = open("Pande_latex_table_for_paper.txt", "w")
+# outF = open("Pande_latex_table_for_paper.txt", "w")
 outF=open('test_pande_table.txt','w')
 for line in w:
   # write line to output file
@@ -64,8 +70,8 @@ for line in w:
   outF.write("\n")
 outF.close()
 
-filename='Astero_Catalogue.txt'
-header = ['KICID', 'Kp', 'Teff', 'Radius','Radp','Radn','True_Logg','Loggp','Loggn','Inferred_Logg','True_Mass','TMassp','TMassn','Inferred_Mass','IMassp','IMassn','Outlier'] 
+filename='LLR_seismic/Seismic_Catalogue.txt'
+header = ['KICID','Kp', 'Teff', 'Radius','Radp','Radn','True_Logg','Loggp','Loggn','Inferred_Logg','ILoggp','ILoggn','True_Mass','TMassp','TMassn','Inferred_Mass','IMassp','IMassn','SNR','Outlier'] 
 df = pd.read_csv(filename,delimiter=';',names=header,skiprows=1)
 
 print('Unsorted:',df.head(10))
@@ -94,7 +100,9 @@ for i in df.index[0:10]:
 	l,lp,ln=float(l),float(lp),float(ln)
 	l,lp,ln=str('{0:.2f}'.format(l)),'{+'+str('{0:.2f}'.format(lp))+'}','{-'+str('{0:.2f}'.format(ln))+'}'
 
-	il=str('{0:.2f}'.format(float(df['Inferred_Logg'][i]))) #inferred logg
+	il,ilp,iln=df['Inferred_Logg'][i],df['ILoggp'][i],df['ILoggn'][i]
+	il,ilp,iln=float(il),float(ilp),float(iln)
+	il,ilp,iln=str('{0:.2f}'.format(il)),'{+'+str('{0:.2f}'.format(ilp))+'}','{-'+str('{0:.2f}'.format(iln))+'}'
 
 	tm,tmp,tmn=df['True_Mass'][i],df['TMassp'][i],df['TMassn'][i]
 	tm,tmp,tmn=float(tm),float(tmp),float(tmn)
@@ -105,8 +113,9 @@ for i in df.index[0:10]:
 	m,mp,mn=str('{0:.2f}'.format(m)),'{+'+str('{0:.2f}'.format(mp))+'}','{-'+str('{0:.2f}'.format(mn))+'}'
 
 	out=str(int(df['Outlier'][i]))
+	snr=str('{0:.2f}'.format(df['SNR'][i]))	
 
-	line=kic+d+kp+d+teff+d+r'${}^{}_{}$'.format(r,rp,rn)+d+'${}^{}_{}$'.format(l,lp,ln)+d+il+d+'${}^{}_{}$'.format(tm,tmp,tmn)+d+'${}^{}_{}$'.format(m,mp,mn)+d+out+'\\\\'
+	line=kic+d+kp+d+teff+d+r'${}^{}_{}$'.format(r,rp,rn)+d+'${}^{}_{}$'.format(l,lp,ln)+d+'${}^{}_{}$'.format(il,ilp,iln)+d+'${}^{}_{}$'.format(tm,tmp,tmn)+d+'${}^{}_{}$'.format(m,mp,mn)+d+snr+d+out+'\\\\'
 	w.append(line)
 
 # Save format in file:
