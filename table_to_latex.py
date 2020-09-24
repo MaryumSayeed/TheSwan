@@ -2,13 +2,13 @@ import pandas as pd
 import numpy as np
 import csv
 import matplotlib.pyplot as plt
-filename='LLR_gaia/Gaia_Catalogue.txt'
-kics = np.loadtxt(filename,skiprows=1,delimiter=';',usecols=[0],dtype=str)
-dat = np.loadtxt(filename,skiprows=1,delimiter=';',dtype=float)
+filename='LLR_gaia/Gaia_Sample_v1.csv'
+# kics = np.loadtxt(filename,skiprows=1,usecols=[0],dtype=str)
+# dat = np.loadtxt(filename,skiprows=1,dtype=float)
 w=[]
 #='RMS: '+str('{0:.2f}'.format(rmsa))
 header = ['KICID','Kp', 'Teff', 'Radius','Radp','Radn','True_Logg','Loggp','Loggn','Inferred_Logg','ILoggp','ILoggn','True_Mass','TMassp','TMassn','Inferred_Mass','IMassp','IMassn','SNR','Outlier'] 
-df = pd.read_csv(filename,delimiter=';',names=header,skiprows=1)
+df = pd.read_csv(filename,names=header,skiprows=1)
 
 print('Unsorted:',df.head(10))
 df.sort_values(by=['KICID'], inplace=True)
@@ -21,7 +21,7 @@ df.sort_values(by=['KICID'], inplace=True)
 
 
 df_short=df.head(10)
-dat=np.array(df_short)
+# dat=np.array(df_short)
 print('Sorted',df_short)# exit()
 w=[]
 for i in df.index[0:10]:
@@ -70,15 +70,15 @@ for line in w:
   outF.write("\n")
 outF.close()
 
-filename='LLR_seismic/Seismic_Catalogue.txt'
+filename='LLR_seismic/Seismic_Sample_v1.csv'
 header = ['KICID','Kp', 'Teff', 'Radius','Radp','Radn','True_Logg','Loggp','Loggn','Inferred_Logg','ILoggp','ILoggn','True_Mass','TMassp','TMassn','Inferred_Mass','IMassp','IMassn','SNR','Outlier'] 
-df = pd.read_csv(filename,delimiter=';',names=header,skiprows=1)
+df = pd.read_csv(filename,names=header,skiprows=1)
 
 print('Unsorted:',df.head(10))
 df.sort_values(by=['KICID'], inplace=True)
 
 df_short=df.head(10)
-dat=np.array(df_short)
+# dat=np.array(df_short)
 print('Sorted',df_short)
 
 # df=df[df['Outlier']==0]

@@ -496,7 +496,7 @@ def final_result(keep1,keep2,true,labelm1,labelm2):
 	print(len(check_idx),len(keep),len(labelm1))
 	outliers=keep[check_idx]
 	newkeep=list(set(keep)-set(outliers))
-	keep=np.array(newkeep)
+	# keep=np.array(newkeep)
 
 	std1=mad_std(labelm1[keep]-true[keep])
 	bias,rms1=returnscatter(true[keep]-labelm1[keep])
@@ -1043,11 +1043,12 @@ def get_inferred_logg_error(fracs,radii):
 def get_mass_error(radii,mass,infer_logg,rad_pos_err,rad_neg_err,fracs):
 	logg=infer_logg
 	logg_pos_err,logg_neg_err=get_inferred_logg_error(fracs,radii)
-	abs_pos_err=(((logg_pos_err/logg)**2.+((rad_pos_err*2)/(radii**2.))**2.)**0.5)
-	abs_neg_err=(((logg_neg_err/logg)**2.+((rad_neg_err*2)/(radii**2.))**2.)**0.5)
-	rel_pos_err=abs_pos_err*mass
-	rel_neg_err=abs_neg_err*mass
-	return rel_pos_err,rel_neg_err
+	# rules are different for logg error calculation with base 10. See here: https://sites.science.oregonstate.edu/~gablek/CH361/Propagation.htm
+	rel_pos_err=(((np.log(10)*logg_pos_err)**2.+(2.*rad_pos_err/radii)**2. )**0.5)
+	rel_neg_err=(((np.log(10)*logg_neg_err)**2.+(2.*rad_neg_err/radii)**2. )**0.5)
+	abs_pos_err=rel_pos_err*mass
+	abs_neg_err=rel_neg_err*mass
+	return abs_pos_err,abs_neg_err
 
 def get_mass(keep,true,labelm1,labelm2,allfiles):
 	allkics=np.zeros(len(keep))
@@ -1153,12 +1154,20 @@ def get_table(oparams,radii,mass,true,infer_logg,rad_pos_err,rad_neg_err,rms,log
 		kps[i]=allkps[kp_kics.index(kic)]
 	kps=['{0:.3f}'.format(i) for i in kps]
 
-	text_filename='LLR_gaia/Gaia_Catalogue_v2.txt'
-	with open(text_filename, 'w') as f:
-		w = csv.writer(f, delimiter=';')
+	from itertools import zip_longest
+	data=[kics,kps,teffs,radii,rad_pos_err,rad_neg_err,true,logg_pos_err,logg_neg_err,logg,ilogg_pos_err,ilogg_neg_err,tmass,tmass_errp,tmass_errn,mass,mass_errp,mass_errn,snr,outliers_flag]
+	export_data = zip_longest(*data, fillvalue = '')
+	text_filename='LLR_gaia/Gaia_Sample_v1.csv'
+
+	with open(text_filename, 'w',newline='') as f:
+		w = csv.writer(f)
 		w.writerow(header)
-		for row in zip(kics,kps,teffs,radii,rad_pos_err,rad_neg_err,true,logg_pos_err,logg_neg_err,logg,ilogg_pos_err,ilogg_neg_err,tmass,tmass_errp,tmass_errn,mass,mass_errp,mass_errn,snr,outliers_flag):
-			w.writerow(row)
+		w.writerows(export_data)
+
+	df = pd.read_csv(text_filename,names=header,skiprows=1,index_col=False)
+	df.sort_values(by=['KICID'], inplace=True)
+	df.to_csv(text_filename,index=False)
+
 	print('...catalogue done!')
 	exit()
 	df = pd.read_csv(text_filename,index_col=False,delimiter=';')
@@ -1186,15 +1195,20 @@ def get_mass_radius_plot(kics,rms,radii,mass,logg,true_logg,rad_pos_err,rad_neg_
 	plt.rc('ytick', labelsize=15)            # fontsize of the tick labels
 	plt.rc('figure', titlesize=15)           # fontsize of the figure title
 	plt.rc('axes', linewidth=2)    
-	
+	plt.clf()
+	plt.hist(mass)
+	plt.savefig('masshist.png')
+	plt.clf()
 	# print(len(kics),len(radii),len(mass))
 	idx=np.where((mass>3.5) )[0]
 	print('# of stars w/ M>3.5',len(idx))
+	diff_above=np.where(abs(true_logg-logg)[idx]>0.25)[0]
+	print('# of stars w/ M>3.5 & delta logg above 0.25',len(diff_above), 'out of',len(idx))
 	idx=np.where((mass>4) )[0]
 	print('# of stars w/ M>4',len(idx))
 	print(len(radii),len(mass),len(true_logg),len(logg))
-	print(mass[idx])
-	print(abs(true_logg-logg)[idx])
+	# print(mass[idx])
+	# print(abs(true_logg-logg)[idx])
 
 	#print(list(np.array(kics[idx]).astype(int)))
 	
@@ -1245,8 +1259,8 @@ def get_mass_radius_plot(kics,rms,radii,mass,logg,true_logg,rad_pos_err,rad_neg_
 		else:
 			continue 
 	print(len(fracs))
-	mass_errp,mass_errn=get_mass_error(radii,mass,logg,rad_pos_err,rad_neg_err,fracs)
-
+	abs_mass_errp,abs_mass_errn=get_mass_error(radii,mass,logg,rad_pos_err,rad_neg_err,fracs)
+	rel_mass_errp,rel_mass_errn=abs_mass_errp/mass,abs_mass_errn/mass
 	# xy = np.vstack([mass,radii])
 	# z = gaussian_kde(xy)(xy)
 	z = np.array(fracs)
@@ -1262,7 +1276,7 @@ def get_mass_radius_plot(kics,rms,radii,mass,logg,true_logg,rad_pos_err,rad_neg_
 	#ax1 = plt.subplot(gs[2:6, 0:4]) #spans 4 rows and 4 columns
 
 	# Scatter plot
-	ax_scatter.errorbar(mass[zidx],radii[zidx],ms=10,fmt='o',xerr=[mass_errn[zidx],mass_errp[zidx]],yerr=[rad_neg_err[zidx]*-1,rad_pos_err[zidx]],markerfacecolor='none',markeredgecolor='none',ecolor='lightgrey')
+	ax_scatter.errorbar(mass[zidx],radii[zidx],ms=10,fmt='o',xerr=[abs_mass_errn[zidx],abs_mass_errp[zidx]],yerr=[rad_neg_err[zidx]*-1,rad_pos_err[zidx]],markerfacecolor='none',markeredgecolor='none',ecolor='lightgrey')
 	im1=ax_scatter.scatter(mass[zidx],radii[zidx],s=20,c=z[zidx],zorder=10)
 	ax_scatter.set_xlim([0,15])
 	ax_scatter.set_ylim([0.5,5])
@@ -1363,33 +1377,37 @@ def get_mass_radius_plot(kics,rms,radii,mass,logg,true_logg,rad_pos_err,rad_neg_
 	plt.savefig('gaia_mass_radius.png',dpi=100,bbox_inches='tight')
 	plt.show(False)
 
-	unc_below1p=len(np.where((mass_errp/mass)>0.1)[0])#/len(mass)
-	unc_below2p=len(np.where((mass_errp/mass)<0.15)[0])/len(mass)
-	unc_below1n=len(np.where((mass_errn/mass)<0.1)[0])/len(mass)
-	unc_below2n=len(np.where((mass_errn/mass)<0.15)[0])/len(mass)
-	frac_errorp=np.median((mass_errp/mass))
-	frac_errorn=np.median((mass_errn/mass))
+	unc_below1p=len(np.where((abs_mass_errp/mass)>0.2)[0])#/len(mass)
+	unc_below2p=len(np.where((abs_mass_errp/mass)<0.15)[0])/len(mass)
+	unc_below1n=len(np.where((abs_mass_errn/mass)<0.2)[0])/len(mass)
+	unc_below2n=len(np.where((abs_mass_errn/mass)<0.15)[0])/len(mass)
+	
 	print('Mass stats:')
-	print('---Max mass:',np.max(mass),'Min mass:',np.min(mass))
-	print('---Frac. of stars with frac uncertainty above 0.1:',unc_below1p,unc_below1p/len(mass)*100,'%')
+	print('---Max mass: {0:.2f}'.format(np.max(mass)),'Min mass: {0:.2f}'.format(np.min(mass)))
+	print('---Frac. of stars with frac uncertainty above 0.2:',unc_below1p,unc_below1p/len(mass)*100,'%')
 	print('---Frac. of stars with frac uncertainty below 0.15:',unc_below2p)
-	print('---Median',np.median(mass_errn),np.median(mass_errp))
-	print('---Max error:',np.max(mass_errn),np.max(mass_errp))
-	print('---Min error:',np.min(mass_errn),np.min(mass_errp))
-	print('---Median of frac. error:',frac_errorp,frac_errorn)
-	print('---Max frac. error',np.max(mass_errp/mass),np.max(abs(mass_errn)/mass))
-	print('---Min frac. error',np.min(mass_errp/mass),np.min(abs(mass_errn)/mass))
+	print()
+	print('---Median frac. error:  {0:.2f}% {0:.2f}%'.format(np.median(rel_mass_errp)*100,np.median(rel_mass_errn)*100))
+	print('---Max frac. error {0:.2f}% {0:.2f}%'.format(np.max(rel_mass_errp)*100,np.max(rel_mass_errn)*100 ))
+	print('---Min frac. error {0:.2f}% {0:.2f}%'.format(np.min(rel_mass_errp)*100,np.min(rel_mass_errn)*100 ))
+	print()
+	print('---Median abs. error {0:.2f} {0:.2f}'.format(np.median(abs_mass_errp),np.median(abs_mass_errn)))
+	print('---Max abs. error: {0:.2f} {0:.2f}'.format(np.max(abs_mass_errp),np.max(abs_mass_errn)))
+	print('---Min abs. error: {0:.2f} {0:.2f}'.format(np.min(abs_mass_errp),np.min(abs_mass_errn)))
+	print()
 	idx=np.where((mass>3.5) )[0]
 	print('---# of stars above 3.5 solmass:',len(idx))
 	
 	print('Radius stats:')
 	print('---Max radius:',np.max(radii),'Min radius:',np.min(radii))
-	print('---Median error:',np.median(abs(rad_neg_err)),np.median(rad_pos_err))
-	print('---Min error:',np.min(abs(rad_neg_err)),np.min(rad_pos_err))
-	print('---Max error:',np.max(abs(rad_neg_err)),np.max(rad_pos_err))
-	print('---Median of frac. error:',np.median((rad_neg_err/radii)),np.median((rad_pos_err/radii)))
-	print('---Max frac. error',np.max(rad_pos_err/radii),np.max(abs(rad_neg_err)/radii))
-	print('---Min frac. error',np.min(rad_pos_err/radii),np.min(abs(rad_neg_err)/radii))
+	
+	print('---Median frac. error: {0:.2f}% {0:.2f}%'.format(np.median((rad_neg_err/radii))*100,np.median((rad_pos_err/radii))*100 ))
+	print('---Max frac. error {0:.2f}% {0:.2f}%'.format(np.max(rad_pos_err/radii)*100,np.max(abs(rad_neg_err)/radii)*100))
+	print('---Min frac. error {0:.2f}% {0:.2f}%'.format(np.min(rad_pos_err/radii)*100,np.min(abs(rad_neg_err)/radii)*100))
+	
+	print('---Median abs. error: {0:.2f} {0:.2f}'.format(np.median(abs(rad_neg_err)),np.median(rad_pos_err)))
+	print('---Min abs. error: {0:.2f} {0:.2f}'.format(np.min(abs(rad_neg_err)),np.min(rad_pos_err)))
+	print('---Max abs. error: {0:.2f} {0:.2f}'.format(np.max(abs(rad_neg_err)),np.max(rad_pos_err)))
 	
 	
 	mass_outside=np.where(np.logical_or(mass>5, mass<0))[0]
@@ -2148,8 +2166,9 @@ def main(start):
 	# result_hists=investigate_outliers(outliers,keep,all_files,testlabels,labels_m1)
 	# pplot_outliers_together(keep,outliers,testlabels,labels_m1,labels_m2,tlogg_pos_err,tlogg_neg_err,result_hists)
 
-	# true_mass,tmass_errp,tmass_errn=get_true_mass(oparams[0])
-	# get_table(oparams,radii,mass,true_logg,infer_logg,rad_pos_err,rad_neg_err,std,tlogg_pos_err,tlogg_neg_err,badidx,true_mass,tmass_errp,tmass_errn)
+	true_mass,tmass_errp,tmass_errn=get_true_mass(oparams[0])
+	get_table(oparams,radii,mass,true_logg,infer_logg,rad_pos_err,rad_neg_err,std,tlogg_pos_err,tlogg_neg_err,badidx,true_mass,tmass_errp,tmass_errn)
+	exit()
 	# paper_plot(keep,outliers,testlabels,labels_m1,labels_m2,logg_pos_err,logg_neg_err)
 
 	a1=np.where((labels_m1[keep]-(testlabels[keep])>0) & (testlabels[keep]>3.5) & (testlabels[keep]<4.2))[0]
@@ -2176,7 +2195,7 @@ def main(start):
 
 	idx3=np.where((labels_m1[keep][idx]>4.1) & (labels_m1[keep][idx]<4.3))[0]
 	
-	get_mass_radius_plot(oparams[0],std,radii,mass,infer_logg,true_logg,rad_pos_err,rad_neg_err)
+	# get_mass_radius_plot(oparams[0],std,radii,mass,infer_logg,true_logg,rad_pos_err,rad_neg_err)
 	exit()
 	plt.clf()
 	plt.subplot(121)

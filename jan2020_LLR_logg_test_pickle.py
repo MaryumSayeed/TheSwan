@@ -142,7 +142,10 @@ def getinferredlabels(trainlabels,traindata,nstars,allfiles):
     print('...took: {} s.'.format(time.time()-s1))
 
     # Number of stars to analyze:
-    ngaia          =14302
+    # if analyzing Pande. sample:  ngaia = 5964 
+    # if analyzing astero. sample: ngaia = 14168 
+    # if testing, let ngaia=10
+    ngaia         =5964
 
     print('Number of total stars:',nstars)
     infer_avg     =np.zeros(ngaia)
@@ -153,9 +156,29 @@ def getinferredlabels(trainlabels,traindata,nstars,allfiles):
     
     totalstart=time.time()
     print('Begin:',datetime.datetime.now())
-    nast=6135
+    
+    # if analyzing Pande. sample:  nast = 0
+    # if analyzing astero. sample: nast = 5964
+    nast=0
+
     #for teststar in range(nast,nast+ngaia):
+    #delete lines below after done simul wnoise stuff
+    # print(np.shape(trainlabels))
+    # t2=trainlabels[6135:]
+    # print('len(t2):',len(t2))
+    # i1=np.where((t2>2.) & (t2<2.5))[0][0:200]
+    # i2=np.where((t2>2.5) & (t2<3.))[0][0:200]
+    # i3=np.where((t2>3.) & (t2<3.5))[0][0:200]
+    # i4=np.where((t2>3.5) & (t2<4.))[0][0:200]
+    # i5=np.where((t2>4.) & (t2<4.5))[0][0:200]
+    # i6=np.where((t2>4.5))[0][0:200]
+    
+    # want_idx=np.concatenate([i1,i2,i3,i4,i5,i6])
+    # print('len(want_idx)=',len(want_idx))
+    # want_idx=want_idx+6135
+    #delete lines above after done simul wnoise stuff
     for teststar in range(nast,nast+ngaia):
+        #if teststar in want_idx:#delete this line after done simul wnoise stuff
         file=allfiles[teststar]
         kic=re.search('kplr(.*)-', file).group(1)
         kic=int(kic.lstrip('0'))
@@ -172,7 +195,7 @@ def getinferredlabels(trainlabels,traindata,nstars,allfiles):
 
             s1=time.time()
             chi2_idx,smallest_chi2 =getlowestchi2(allchi2,teststar)
-            print(traindata[chi2_idx,:])
+            #print(traindata[chi2_idx,:])
             
             print('   getlowestchi2',time.time()-s1)
 
@@ -289,7 +312,9 @@ def gettraindata(text_files,pickle_files):
         labels=np.loadtxt(text_files[i],delimiter=' ',usecols=[1])
         files=np.loadtxt(text_files[i],delimiter=' ',usecols=[0],dtype=str)
         stars= len(labels)
-        data = np.memmap(pickle_files[i],dtype=np.float32,mode='r',shape=(21000,stars,3))
+        #data = np.memmap(pickle_files[i],dtype=np.float32,mode='r',shape=(21000,stars,3)) #for oversampling=10
+        data = np.memmap(pickle_files[i],dtype=np.float32,mode='r',shape=(2099,stars,3)) #for oversampling=1: 2099, oversampling=5: 10498, oversampling=10: 20995
+
         trainlabels.append(labels)
         traindata=data[:,:,1].transpose()
         print(traindata[0,:])
@@ -323,7 +348,7 @@ def gettraindata(text_files,pickle_files):
     print('Shape of whole data set (stars, bins):',np.shape(alldata))
     print('Shape of labels:',np.shape(labels))
     print('Shape of files:',np.shape(allfiles))
-    start,end=6300,6307
+    # start,end=6300,6307
     #print(allfiles[start:end])
     #print(labels[start:end])
 
@@ -332,10 +357,10 @@ def gettraindata(text_files,pickle_files):
     print('     ','took {}s.'.format(datetime.datetime.now()-begintime))
     return labels,alldata,total_stars,allfiles
 
-
-
-
-train_file_names =['pande_pickle_1','pande_pickle_2','pande_pickle_3','astero_final_sample_1','astero_final_sample_2','astero_final_sample_3','astero_final_sample_4']
+dp='baseline_cuts/65_days/LLR_gaia/'
+da='baseline_cuts/65_days/LLR_seismic/'
+train_file_names =[dp+'pande_pickle_1',dp+'pande_pickle_2',dp+'pande_pickle_3',da+'astero_final_sample_1',da+'astero_final_sample_2',da+'astero_final_sample_3',da+'astero_final_sample_4']    
+#train_file_names =['pande_pickle_1','pande_pickle_2','pande_pickle_3','astero_final_sample_1','astero_final_sample_2','astero_final_sample_3','astero_final_sample_4']
 train_file_pickle=[i+'_memmap.pickle' for i in train_file_names]
 train_file_txt   =[i+'.txt' for i in train_file_names]
 
@@ -345,7 +370,7 @@ print('Getting training data...')
 train_labels,train_data,total_stars,all_files=gettraindata(train_file_txt,train_file_pickle)
 print('Beginning inference...')
 testlabels,average,labelm1,modelm1,labelm2,min_chi2=getinferredlabels(train_labels,train_data,total_stars,all_files)
-dirr='/Users/maryumsayeed/Desktop/HuberNess/mlearning/powerspectrum/jan2020_pande_LLR5/'
+dirr='/Users/maryumsayeed/Desktop/HuberNess/mlearning/powerspectrum/baseline_cuts/65_days/LLR_gaia/'
 np.save(dirr+'testlabels.npy',testlabels)
 np.save(dirr+'average.npy',average)
 np.save(dirr+'labels_m1.npy',labelm1)
@@ -357,7 +382,7 @@ np.save(dirr+'min_chi2.npy',min_chi2)
 
 
 def returnscatter(diffxy):
-    #diffxy = inferred - true label value
+    #diffxy = inferred - true label values
     rms = (np.sum([ (val)**2.  for val in diffxy])/len(diffxy))**0.5
     bias = (np.mean([ (val)  for val in diffxy]))
     return bias, rms
@@ -418,7 +443,7 @@ def plotresults(testlabels,infer,model_1,model_2):
     plt.legend(loc=1)
     
     #plt.suptitle('Logg - 10 neighbours')
-    plt.savefig(dirr+'part1.pdf')
+    plt.savefig(dirr+'part1.png')
     # plt.show()
     print('average',std_avg,rms_av,bias_av)
     print('model_1',std_m1,rms_m1,bias_m1)
@@ -429,7 +454,10 @@ def plotresults(testlabels,infer,model_1,model_2):
 
 
 #plotresults(testlabels[6000+5412:6000+5412+len(average)],average,labelm1,labelm2)
-start=6135
+# if analyzing pande. sample: start = 0
+# if analyzing astero. sample: start = 5964
+start=0
+
 plotresults(testlabels[start:start+len(average)],average,labelm1,labelm2)
 
 # In[11]:

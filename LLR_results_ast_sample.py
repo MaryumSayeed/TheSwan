@@ -469,7 +469,7 @@ def final_result(keep1,keep2,true,labelm1,labelm2):
 	print(len(check_idx),len(keep),len(labelm1))
 	outliers=keep[check_idx]
 	newkeep=list(set(keep)-set(outliers))
-	keep=np.array(newkeep)
+	# keep=np.array(newkeep)
 
 	std1=mad_std(labelm1[keep]-true[keep])
 	bias,rms1=returnscatter(true[keep]-labelm1[keep])
@@ -1393,11 +1393,12 @@ def get_inferred_logg_error(fracs,radii):
 def get_mass_error(radii,mass,infer_logg,rad_pos_err,rad_neg_err,fracs):
 	logg=infer_logg
 	logg_pos_err,logg_neg_err=get_inferred_logg_error(fracs,radii)
-	abs_pos_err=(((logg_pos_err/logg)**2.+((rad_pos_err*2)/(radii**2.))**2.)**0.5)
-	abs_neg_err=(((logg_neg_err/logg)**2.+((rad_neg_err*2)/(radii**2.))**2.)**0.5)
-	rel_pos_err=abs_pos_err*mass
-	rel_neg_err=abs_neg_err*mass
-	return rel_pos_err,rel_neg_err
+	# rules are different for logg error calculation with base 10. See here: https://sites.science.oregonstate.edu/~gablek/CH361/Propagation.htm
+	rel_pos_err=(((np.log(10)*logg_pos_err)**2.+(2.*rad_pos_err/radii)**2. )**0.5)
+	rel_neg_err=(((np.log(10)*logg_neg_err)**2.+(2.*rad_neg_err/radii)**2. )**0.5)
+	abs_pos_err=rel_pos_err*mass
+	abs_neg_err=rel_neg_err*mass
+	return abs_pos_err,abs_neg_err
 
 def get_mass_radius_plot(kics,rms,radii,mass,logg,true_logg,rad_pos_err,rad_neg_err,logg_pos_err,logg_neg_err):
 	from mpl_toolkits.axes_grid1 import make_axes_locatable
@@ -1629,15 +1630,25 @@ def get_table(keep,allfiles,testlabels,labels_m1,mass,rad_pos_err,rad_neg_err,rm
 	mass_errp,mass_errn=get_mass_error(radii,mass,infer_logg,rad_pos_err,rad_neg_err,snr)
 	ilogg_pos_err,ilogg_neg_err=get_inferred_logg_error(snr,radii)
 	
+	from itertools import zip_longest
 	header = ['KICID','Kp', 'Teff', 'Radius','Radp','Radn','True_Logg','TLoggp','TLoggn','Inferred_Logg','ILoggp','ILoggn','True_Mass','TMassp','TMassn','Inferred_Mass','IMassp','IMassn','SNR','Outlier'] 
-	text_filename='LLR_seismic/Seismic_Catalogue_v2.txt'
-	with open(text_filename, 'w') as f:
-		w = csv.writer(f, delimiter=';')
+	text_filename='LLR_seismic/Seismic_Sample_v1.csv'
+	
+	data=kics,kps,teffs,radii,rad_pos_err,rad_neg_err,true_logg,tlogg_pos_err,tlogg_neg_err,infer_logg,ilogg_pos_err,ilogg_neg_err,tmass,tmass_errp,tmass_errn,mass,mass_errp,mass_errn,snr,outliers_flag
+	export_data = zip_longest(*data, fillvalue = '')
+
+	with open(text_filename, 'w',newline='') as f:
+		w = csv.writer(f)
 		w.writerow(header)
-		for row in zip(kics,kps,teffs,radii,rad_pos_err,rad_neg_err,true_logg,tlogg_pos_err,tlogg_neg_err,infer_logg,ilogg_pos_err,ilogg_neg_err,tmass,tmass_errp,tmass_errn,mass,mass_errp,mass_errn,snr,outliers_flag):
-			w.writerow(row)
+		w.writerows(export_data)
+
+	df = pd.read_csv(text_filename,names=header,skiprows=1,index_col=False)
+	df.sort_values(by=['KICID'], inplace=True)
+	df.to_csv(text_filename,index=False)
+
 	print('...catalogue done!')
 	exit()
+
 	df = pd.read_csv(text_filename,index_col=False,delimiter=';')
 	df.sort_values(by=['KICID'], inplace=True)
 	#print(df)
@@ -1711,8 +1722,8 @@ def main(start):
 	# result_hists=investigate_outliers(outliers,keep,all_files,testlabels,labels_m1)
 	# pplot_outliers_together(keep,outliers,testlabels,labels_m1,labels_m2,tlogg_pos_err,tlogg_neg_err,result_hists)
 
-	# true_mass,tmass_errp,tmass_errn=get_true_mass(oparams[0])
-	# get_table(keep,all_files,testlabels,labels_m1,mass,rad_pos_err,rad_neg_err,std,tlogg_pos_err,tlogg_neg_err,badidx,true_mass,tmass_errp,tmass_errn)
+	true_mass,tmass_errp,tmass_errn=get_true_mass(oparams[0])
+	get_table(keep,all_files,testlabels,labels_m1,mass,rad_pos_err,rad_neg_err,std,tlogg_pos_err,tlogg_neg_err,badidx,true_mass,tmass_errp,tmass_errn)
 	exit()
 	# get_mass_radius_plot(kics,rms,radii,mass,infer_logg,true_logg,rad_pos_err,rad_neg_err,logg_pos_err,logg_neg_err)
 	# np.save('index_of_good_stars.npy',keep)
