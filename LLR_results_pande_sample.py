@@ -821,10 +821,10 @@ def pplot_outliers_together(keep,outliers,true,labelm1,labelm2,logg_pos_err,logg
 	ax1.plot(true[keep],true[keep],c='k',linestyle='dashed')
 	# print(logg_pos_err,logg_neg_err)
 
-	ax1.errorbar(true[keep],labelm1[keep],xerr=[logg_neg_err*-1,logg_pos_err],ecolor='lightcoral',markeredgecolor='k',markerfacecolor='grey',ms=1,fmt='o',zorder=1,linewidth=1)
+	ax1.errorbar(true[keep],labelm1[keep],xerr=[logg_neg_err*-1,logg_pos_err],ecolor='lightcoral',markeredgecolor='k',markerfacecolor='grey',ms=1,fmt='o',zorder=1,linewidth=1,alpha=0.5)
 	# ax1.scatter(true[keep],labelm1[keep],s=4)
-	ax1.scatter(true[keep],labelm1[keep],edgecolor='k',facecolor='grey',s=4,zorder=10)
-	ax1.scatter(true[outliers],labelm1[outliers],edgecolor='grey',facecolor='lightgrey',s=4,zorder=1,label='Outliers')
+	ax1.scatter(true[keep],labelm1[keep],edgecolor='k',facecolor='grey',s=4,zorder=10,alpha=0.4)
+	ax1.scatter(true[outliers],labelm1[outliers],edgecolor='grey',facecolor='lightgrey',s=4,zorder=1,label='Outliers',alpha=0.7)
 	locs, labels = plt.yticks()
 	newlabels=[2.5,3.0,3.5,4.0,4.5,5.0]
 	plt.yticks(newlabels, newlabels)
@@ -849,8 +849,8 @@ def pplot_outliers_together(keep,outliers,true,labelm1,labelm2,logg_pos_err,logg
 	# t.set_bbox(dict(facecolor='none',edgecolor='none'))#, alpha=0.5, edgecolor='red'))
 
 	ax2 = plt.subplot(gs[6:8, 0:6])
-	ax2.scatter(true[keep],true[keep]-labelm1[keep],edgecolor='k',facecolor='grey',zorder=10,s=4)
-	ax2.scatter(true[outliers],true[outliers]-labelm1[outliers],edgecolor='grey',facecolor='lightgrey',s=4,zorder=1)
+	ax2.scatter(true[keep],true[keep]-labelm1[keep],alpha=0.3,edgecolor='k',facecolor='grey',zorder=10,s=4)
+	ax2.scatter(true[outliers],true[outliers]-labelm1[outliers],alpha=0.4,edgecolor='grey',facecolor='lightgrey',s=4,zorder=1)
 	ax2.axhline(0,c='k',linestyle='dashed')
 	ax2.set_xlabel('Gaia Logg [dex]')
 	ax2.set_ylabel('$\Delta$ Logg [dex]')
@@ -1145,6 +1145,9 @@ def get_table(oparams,radii,mass,true,infer_logg,rad_pos_err,rad_neg_err,rms,log
 	outliers_flag[outliers]=1
 	outliers_flag=outliers_flag.astype(int)
 
+	# Set -999 for inferred mass of outliers:
+	mass[outliers]=-999
+
 	# Find Kp values:
 	print('--- finding Kp values.')
 	kps=np.zeros(len(kics))
@@ -1157,7 +1160,7 @@ def get_table(oparams,radii,mass,true,infer_logg,rad_pos_err,rad_neg_err,rms,log
 	from itertools import zip_longest
 	data=[kics,kps,teffs,radii,rad_pos_err,rad_neg_err,true,logg_pos_err,logg_neg_err,logg,ilogg_pos_err,ilogg_neg_err,tmass,tmass_errp,tmass_errn,mass,mass_errp,mass_errn,snr,outliers_flag]
 	export_data = zip_longest(*data, fillvalue = '')
-	text_filename='LLR_gaia/Gaia_Sample_v1.csv'
+	text_filename='LLR_gaia/Gaia_Sample_v2.csv'
 
 	with open(text_filename, 'w',newline='') as f:
 		w = csv.writer(f)

@@ -711,9 +711,9 @@ def pplot_outliers_together(keep,outliers,true,labelm1,labelm2,logg_pos_err,logg
 	ax1.plot(true[keep],true[keep],c='k',linestyle='dashed')
 	print(logg_neg_err[0:10],logg_pos_err[0:10])
 	# exit()
-	ax1.errorbar(true[keep],labelm1[keep],xerr=[logg_neg_err,logg_pos_err],ecolor='lightcoral',markeredgecolor='k',markerfacecolor='grey',ms=1,fmt='o')
-	ax1.scatter(true[keep],labelm1[keep],edgecolor='k',facecolor='grey',s=10,zorder=10)
-	ax1.scatter(true[outliers],labelm1[outliers],edgecolor='grey',facecolor='lightgrey',s=15,zorder=1,label='Outliers')
+	ax1.errorbar(true[keep],labelm1[keep],xerr=[logg_neg_err,logg_pos_err],ecolor='lightcoral',markeredgecolor='k',markerfacecolor='grey',ms=1,fmt='o',alpha=0.5)
+	ax1.scatter(true[keep],labelm1[keep],edgecolor='k',facecolor='grey',s=4,zorder=10,alpha=0.4)
+	ax1.scatter(true[outliers],labelm1[outliers],edgecolor='grey',facecolor='lightgrey',s=4,zorder=1,label='Outliers',alpha=0.7)
 	
 	locs, labels = plt.yticks()
 	newlabels=[1.0,1.5,2.0,2.5,3.0,3.5,4.0,4.5,5.0]
@@ -739,8 +739,8 @@ def pplot_outliers_together(keep,outliers,true,labelm1,labelm2,logg_pos_err,logg
 	# t.set_bbox(dict(facecolor='none',edgecolor='none'))#, alpha=0.5, edgecolor='red'))
 
 	ax2 = plt.subplot(gs[6:8, 0:6])
-	ax2.scatter(true[keep],true[keep]-labelm1[keep],edgecolor='k',facecolor='grey',zorder=10,s=10)
-	ax2.scatter(true[outliers],true[outliers]-labelm1[outliers],edgecolor='grey',facecolor='lightgrey',zorder=1,s=10)
+	ax2.scatter(true[keep],true[keep]-labelm1[keep],alpha=0.4,edgecolor='k',facecolor='grey',zorder=10,s=4)
+	ax2.scatter(true[outliers],true[outliers]-labelm1[outliers],alpha=0.4,edgecolor='grey',facecolor='lightgrey',zorder=1,s=4)
 	ax2.axhline(0,c='k',linestyle='dashed')
 	ax2.set_xlabel('Asteroseismic Logg [dex]')
 	ax2.set_ylabel('$\Delta$ Logg [dex]')
@@ -1617,6 +1617,8 @@ def get_table(keep,allfiles,testlabels,labels_m1,mass,rad_pos_err,rad_neg_err,rm
 	tlogg_neg_err=['{0:.3f}'.format(i) for i in tlogg_neg_err]
 	kps=['{0:.3f}'.format(i) for i in kps]
 
+	
+
 	print('--- getting SNR...')
 	wnoise_frac=pd.read_csv('LLR_seismic/astero_wnoise_frac.txt',delimiter=' ',names=['KICID','More','Less'])
 	snr=[]
@@ -1630,9 +1632,12 @@ def get_table(keep,allfiles,testlabels,labels_m1,mass,rad_pos_err,rad_neg_err,rm
 	mass_errp,mass_errn=get_mass_error(radii,mass,infer_logg,rad_pos_err,rad_neg_err,snr)
 	ilogg_pos_err,ilogg_neg_err=get_inferred_logg_error(snr,radii)
 	
+	# Set -999 for inferred mass of outliers:
+	mass[outliers]=-999
+	
 	from itertools import zip_longest
 	header = ['KICID','Kp', 'Teff', 'Radius','Radp','Radn','True_Logg','TLoggp','TLoggn','Inferred_Logg','ILoggp','ILoggn','True_Mass','TMassp','TMassn','Inferred_Mass','IMassp','IMassn','SNR','Outlier'] 
-	text_filename='LLR_seismic/Seismic_Sample_v1.csv'
+	text_filename='LLR_seismic/Seismic_Sample_v2.csv'
 	
 	data=kics,kps,teffs,radii,rad_pos_err,rad_neg_err,true_logg,tlogg_pos_err,tlogg_neg_err,infer_logg,ilogg_pos_err,ilogg_neg_err,tmass,tmass_errp,tmass_errn,mass,mass_errp,mass_errn,snr,outliers_flag
 	export_data = zip_longest(*data, fillvalue = '')
