@@ -2,7 +2,7 @@
 Data-driven method to infer stellar surface gravities from *Kepler* power spectra using local linear regression. The code also references, and is based on the infrastructure, of The Cannon ([Ness et al. 2015](https://ui.adsabs.harvard.edu/abs/2018ApJ...866...15N/abstract); [The Cannon](https://github.com/mkness/TheCannon)).
 
 ## Authors
-* Maryum Sayeed (UBC), <maryum.sayeed@alumni.ubc.ca>
+* Maryum Sayeed (UBC)
 * Daniel Huber (IfA)
 * Adam Wheeler (Columbia)
 * Melissa Ness (Columbia, Flatiron)
