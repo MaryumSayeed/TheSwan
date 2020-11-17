@@ -14,3 +14,5 @@ Copyright 2020 the authors. The Swan is free software made available under the M
 * Run quicklook.py on light curves to generate power spectra.
 * Run psmaketrainfile_one.py to convert stellar power spectra to log(power spectra).
 * Run LLR_logg.py to run local linear regression on both samples.
+
+For any questions, please get in touch: `maryum.sayeed@alumni.ubc.ca`.
