@@ -1,4 +1,4 @@
-# The_Swan
+# The Swan
 This is the code to use local linear regression on Kepler power spectra to infer stellar surface gravities using data-driven modeling. The code also references, and is based on the infrastructure, of The Cannon ([Ness et al. 2015](https://ui.adsabs.harvard.edu/abs/2018ApJ...866...15N/abstract); [The Cannon](https://github.com/mkness/TheCannon)).
 
 ## Authors
