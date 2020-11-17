@@ -412,15 +412,15 @@ def fit_power_radius(radii,power):
 	diff=0.7
 
 	a,b=3.2,0.70
-	diff=0.8
+	diff=0.9
 	
 	keep=np.where(abs(logfit((xdata),a,b)-ydata)<diff)[0]
 	plt.figure(figsize=(6,8))
 	gs = gridspec.GridSpec(4, 4,hspace=0)
 	ax1 = plt.subplot(gs[0:3, 0:4])
 
-	ax1.scatter(x,y,c=remove_c,s=ms,label='Removed')
-	ax1.scatter(x[keep],y[keep],c=keep_c,s=ms)
+	ax1.scatter(x,y,c='lightcoral',s=ms,label='Removed')
+	ax1.scatter(x[keep],y[keep],c='k',s=ms,alpha=0.7)
 	ax1.plot(10.**(xdata),10.**(logfit(xdata,a,b)),c='k',label='Linear Best fit')
 	ax1.set_axisbelow(True)
 	plt.grid(b=True, which='major', linestyle='-', alpha=0.2)
@@ -446,8 +446,8 @@ def fit_power_radius(radii,power):
 
 	ax2.axhline(0,c='k',linestyle='dashed')
 	yfit=linfit(x,a,b)
-	ax2.scatter(x,yfit/y,c=remove_c,s=ms)
-	ax2.scatter(x[keep],(yfit/y)[keep],c=keep_c,s=ms)
+	ax2.scatter(x,yfit/y,c='lightcoral',s=ms)
+	ax2.scatter(x[keep],(yfit/y)[keep],c='k',s=ms,alpha=0.7)
 	plt.xscale('log')
 	plt.yscale('log')
 	plt.minorticks_on()
@@ -463,9 +463,9 @@ def fit_power_radius(radii,power):
 	# plt.show(True)
 	plt.tight_layout()
 	# print(np.min(10.**yloggdiff))
-	# plt.savefig('pande_power_radius.png',dpi=100,bbox_inches='tight')
+	plt.savefig('pande_power_radius.png',dpi=100,bbox_inches='tight')
 	print('manual fitting',len(keep))
-	# exit()
+	exit()
 	# plt.clf()
 	print('-- Stars < {} in PSD vs. Rad plot:'.format(diff),len(keep))
 	return keep
@@ -496,7 +496,7 @@ def final_result(keep1,keep2,true,labelm1,labelm2):
 	print(len(check_idx),len(keep),len(labelm1))
 	outliers=keep[check_idx]
 	newkeep=list(set(keep)-set(outliers))
-	# keep=np.array(newkeep)
+	keep=np.array(newkeep)
 
 	std1=mad_std(labelm1[keep]-true[keep])
 	bias,rms1=returnscatter(true[keep]-labelm1[keep])
@@ -1028,15 +1028,19 @@ def get_inferred_logg_error(fracs,radii):
 	errors=np.zeros(len(fracs))
 	def powerlaw(x, p):
 		return p[0]*np.power(x,p[1])+p[2]
-	popt=[2.15178882e-04, -3.86638614e+00,  9.94698735e-03]
+	# popt=[ 1.25383735e-05, -8.52536607e+00,  1.04420490e-02]
+	popt=[ 3.39135062e-04, -8.06421837e+00 , 6.74939173e-03]
 
 	for fi in range(0,len(fracs)):
 		f=fracs[fi]
-		for i in range(0,len(data)):
-			if f > 0.8 or f < 0.2:
-				errors[fi]=0.2
-			else:
-				errors[fi]=powerlaw(f,popt)
+		if f > 0.96:
+			errors[fi]=0.2
+		elif f < 0.36:
+			errors[fi]=-99
+		elif powerlaw(f,popt) <= 0.02:
+			errors[fi]=0.02
+		else:
+			errors[fi]=powerlaw(f,popt)
 	logg_pos_err,logg_neg_err=errors,errors
 	return logg_pos_err,logg_neg_err
 
@@ -1136,7 +1140,12 @@ def get_table(oparams,radii,mass,true,infer_logg,rad_pos_err,rad_neg_err,rms,log
 
 	mass_errp,mass_errn=get_mass_error(radii,mass,infer_logg,rad_pos_err,rad_neg_err,snr)
 	ilogg_pos_err,ilogg_neg_err=get_inferred_logg_error(snr,radii)
-		
+	
+	for i in range(0,len(logg)):
+		if snr[i] <=0.36:
+			logg[i]==-99
+	
+
 	header = ['KICID','Kp', 'Teff', 'Radius','Radp','Radn','True_Logg','TLoggp','TLoggn','Inferred_Logg','ILoggp','ILoggn','True_Mass','TMassp','TMassn','Inferred_Mass','IMassp','IMassn','SNR','Outlier'] 
 	
 	# Flag outliers:
@@ -1160,7 +1169,7 @@ def get_table(oparams,radii,mass,true,infer_logg,rad_pos_err,rad_neg_err,rms,log
 	from itertools import zip_longest
 	data=[kics,kps,teffs,radii,rad_pos_err,rad_neg_err,true,logg_pos_err,logg_neg_err,logg,ilogg_pos_err,ilogg_neg_err,tmass,tmass_errp,tmass_errn,mass,mass_errp,mass_errn,snr,outliers_flag]
 	export_data = zip_longest(*data, fillvalue = '')
-	text_filename='LLR_gaia/Gaia_Sample_v2.csv'
+	text_filename='LLR_gaia/Gaia_Sample_v5.csv'
 
 	with open(text_filename, 'w',newline='') as f:
 		w = csv.writer(f)
@@ -1199,19 +1208,22 @@ def get_mass_radius_plot(kics,rms,radii,mass,logg,true_logg,rad_pos_err,rad_neg_
 	plt.rc('figure', titlesize=15)           # fontsize of the figure title
 	plt.rc('axes', linewidth=2)    
 	plt.clf()
-	plt.hist(mass)
-	plt.savefig('masshist.png')
-	plt.clf()
+	# plt.hist(mass)
+	# plt.savefig('masshist.png')
+	# plt.clf()
 	# print(len(kics),len(radii),len(mass))
 	idx=np.where((mass>3.5) )[0]
 	print('# of stars w/ M>3.5',len(idx))
-	diff_above=np.where(abs(true_logg-logg)[idx]>0.25)[0]
-	print('# of stars w/ M>3.5 & delta logg above 0.25',len(diff_above), 'out of',len(idx))
+	diff_above=np.where(abs(true_logg-logg)[idx]>0.3)[0]
+	print('# of stars w/ M>3.5 & delta logg above 0.3',len(diff_above), 'out of',len(idx))
+	print('\n')
 	idx=np.where((mass>4) )[0]
 	print('# of stars w/ M>4',len(idx))
 	print(len(radii),len(mass),len(true_logg),len(logg))
-	# print(mass[idx])
-	# print(abs(true_logg-logg)[idx])
+	print(mass[idx])
+	print(radii[idx])
+	print(abs(true_logg-logg)[idx])
+	print(np.min(abs(true_logg-logg)[idx]))
 
 	#print(list(np.array(kics[idx]).astype(int)))
 	
@@ -2169,11 +2181,10 @@ def main(start):
 	# result_hists=investigate_outliers(outliers,keep,all_files,testlabels,labels_m1)
 	# pplot_outliers_together(keep,outliers,testlabels,labels_m1,labels_m2,tlogg_pos_err,tlogg_neg_err,result_hists)
 
-	true_mass,tmass_errp,tmass_errn=get_true_mass(oparams[0])
-	get_table(oparams,radii,mass,true_logg,infer_logg,rad_pos_err,rad_neg_err,std,tlogg_pos_err,tlogg_neg_err,badidx,true_mass,tmass_errp,tmass_errn)
-	exit()
+	# true_mass,tmass_errp,tmass_errn=get_true_mass(oparams[0])
+	# get_table(oparams,radii,mass,true_logg,infer_logg,rad_pos_err,rad_neg_err,std,tlogg_pos_err,tlogg_neg_err,badidx,true_mass,tmass_errp,tmass_errn)
 	# paper_plot(keep,outliers,testlabels,labels_m1,labels_m2,logg_pos_err,logg_neg_err)
-
+	# exit()
 	a1=np.where((labels_m1[keep]-(testlabels[keep])>0) & (testlabels[keep]>3.5) & (testlabels[keep]<4.2))[0]
 	b1=np.where((testlabels[keep]>3.5) & (testlabels[keep]<4.2))[0]
 
@@ -2198,7 +2209,7 @@ def main(start):
 
 	idx3=np.where((labels_m1[keep][idx]>4.1) & (labels_m1[keep][idx]<4.3))[0]
 	
-	# get_mass_radius_plot(oparams[0],std,radii,mass,infer_logg,true_logg,rad_pos_err,rad_neg_err)
+	get_mass_radius_plot(oparams[0],std,radii,mass,infer_logg,true_logg,rad_pos_err,rad_neg_err)
 	exit()
 	plt.clf()
 	plt.subplot(121)

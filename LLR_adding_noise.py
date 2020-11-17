@@ -5,7 +5,7 @@
 
 
 import numpy as np
-import pickle, os
+import pickle, os, sys
 import matplotlib.pyplot as plt
 from scipy.stats import chisquare
 from astropy.io import ascii
@@ -28,10 +28,51 @@ from astropy.stats import mad_std
 from sklearn.metrics import r2_score
 import matplotlib.image as mpimg
 from scipy.stats import chisquare
-rc('text', usetex=True)
-
+# rc('text', usetex=True)
+import argparse
+import quicklook_adding_noise
 
 # In[2]:
+
+# Create the parser
+my_parser = argparse.ArgumentParser(description='Run LLR on given sample.')
+
+# Add the arguments
+my_parser.add_argument('-sample','--sample',
+                       metavar='sample',
+                       type=str,required=True,
+                       help='The sample (Gaia or Seismic) to run LLR on.')
+
+my_parser.add_argument('-d','--directory',
+                       metavar='directory',
+                       type=str,required=True,
+                       help='Next sub-directory (in ~/powerspectrum) to save results in.')
+
+
+my_parser.add_argument('-n','--noise',
+                       metavar='noise',
+                       type=float,required=True,
+                       help='Noise Factor.')
+
+
+
+# Execute the parse_args() method
+args = my_parser.parse_args()
+
+sample = args.sample
+dirr= args.directory
+NOISE_FACTOR=args.noise
+
+if sample.lower() =='gaia':
+    NGAIA=5964  # number of stars of given sample (Gaia=5964, Seismic=14168)
+    NAST=0      # index where seismic stars start. 0 if not the seismic sample.
+    START=0     # for plotting: index to start plotting true logg values
+elif sample.lower() =='seismic':
+    NGAIA =14168 # number of stars of given sample (Gaia=5964, Seismic=14168)
+    NAST =5964   # index where seismic stars start. 0 if not the seismic sample.
+    START=5964  # for plotting: index to start plotting true logg values
+else:
+    print('Sample not recognized. Try "Gaia" or "Seismic".')
 
 
 plt.rcParams['xtick.major.size'] = 5
@@ -105,10 +146,14 @@ def predict_labels_2(spectrum, P, L):
 def getlowestchi2(chi2_values,teststar):
     lowest_chi2 = sorted(chi2_values)[0:11]
     chi2_idx    = np.array([np.where(chi2_values==i)[0][0] for i in lowest_chi2]) # find index of 10 lowest chi2 values
+    print(teststar)
     print('before',chi2_idx)
-    chi2_idx    = chi2_idx[chi2_idx != teststar]  #don't inlcude the test-star itself in training
+    if teststar in chi2_idx:
+        chi2_idx    = chi2_idx[chi2_idx != teststar]  #don't inlcude the test-star itself in training
+    else:
+        chi2_idx=chi2_idx[0:10]
     print('after',chi2_idx)
-
+    
     min_chi2    =np.min(chi2_values[chi2_idx])
     return chi2_idx,min_chi2
 
@@ -145,13 +190,14 @@ def getinferredlabels(trainlabels,traindata,nstars,allfiles):
     # if analyzing Pande. sample:  ngaia = 5964 
     # if analyzing astero. sample: ngaia = 14168 
     # if testing, let ngaia=10
-    ngaia         =5964
+    ngaia         =NGAIA#14168#5964
 
     print('Number of total stars:',nstars)
     infer_avg     =np.zeros(ngaia)
     infer_m1      =np.zeros(ngaia)
     infer_m2      =np.zeros(ngaia)
     min_chi2      =np.zeros(ngaia)
+    snr_vals      =np.zeros(ngaia)
     model_spectra =[]
     
     totalstart=time.time()
@@ -159,49 +205,51 @@ def getinferredlabels(trainlabels,traindata,nstars,allfiles):
     
     # if analyzing Pande. sample:  nast = 0
     # if analyzing astero. sample: nast = 5964
-    nast=0
+    nast=NAST#5964
 
-    #for teststar in range(nast,nast+ngaia):
-    #delete lines below after done simul wnoise stuff
-    # print(np.shape(trainlabels))
-    # t2=trainlabels[6135:]
-    # print('len(t2):',len(t2))
-    # i1=np.where((t2>2.) & (t2<2.5))[0][0:200]
-    # i2=np.where((t2>2.5) & (t2<3.))[0][0:200]
-    # i3=np.where((t2>3.) & (t2<3.5))[0][0:200]
-    # i4=np.where((t2>3.5) & (t2<4.))[0][0:200]
-    # i5=np.where((t2>4.) & (t2<4.5))[0][0:200]
-    # i6=np.where((t2>4.5))[0][0:200]
-    
-    # want_idx=np.concatenate([i1,i2,i3,i4,i5,i6])
-    # print('len(want_idx)=',len(want_idx))
-    # want_idx=want_idx+6135
-    #delete lines above after done simul wnoise stuff
+    # for i in range(0,nast+5):
+
+
+    print(testdata[0,:])
     for teststar in range(nast,nast+ngaia):
         #if teststar in want_idx:#delete this line after done simul wnoise stuff
+        # print(teststar)
+        # print(testdata[teststar,:])
+        # exit()
         file=allfiles[teststar]
+        psfile=file
+        fitsfile=file[0:-3]
+        snr=0
+        freq,test_spectrum,KICID,snr=quicklook_adding_noise.get_psd(fitsfile,NOISE_FACTOR) # returns the PSD not log10
+        end=np.where(freq>253)[0][0]    
+        test_spectrum=np.log10(np.abs(test_spectrum[0:end])) 
+        # psfile=file
+        # b = ascii.read(file)
+        # flux = b['power']
+        # flux=np.array(flux,dtype='float64')
+        # flux=np.log10(np.abs(flux[0:end]))
+        
         kic=re.search('kplr(.*)-', file).group(1)
         kic=int(kic.lstrip('0'))
         print('Star #',teststar,kic)
         try:
             s0=time.time()
 
-            test_spectrum     =testdata[teststar,:] #1 in the last column contains the flux btw
+            #test_spectrum     =testdata[teststar,:] #1 in the last column contains the flux btw
             
             s1=time.time()
-            #print(type(traindata[:,:]),np.shape(traindata[:,:]))
+            
             allchi2           =np.sum((traindata[:,:]-test_spectrum)**2.,1)
-            print('   get all chi2',time.time()-s1)
+            # print('   get all chi2',time.time()-s1)
 
             s1=time.time()
             chi2_idx,smallest_chi2 =getlowestchi2(allchi2,teststar)
             #print(traindata[chi2_idx,:])
-            
-            print('   getlowestchi2',time.time()-s1)
+            # print('   getlowestchi2',time.time()-s1)
 
             s1=time.time()
             label_m1,spectrum_m1,label_m2=getclosestspectra(chi2_idx,test_spectrum,traindata,trainlabels)
-            print('   getclosestspectra',time.time()-s1)
+            # print('   getclosestspectra',time.time()-s1)
             avg_logg = np.average(trainlabels[chi2_idx])                           # find avg of 10 loggs with lowest chi2 values
             scatter_avg=round(testlabels[teststar]-avg_logg,2)
             scatter_m1 =round(testlabels[teststar]-label_m1,2)
@@ -215,8 +263,9 @@ def getinferredlabels(trainlabels,traindata,nstars,allfiles):
             infer_m1[teststar-nast]    =label_m1
             infer_m2[teststar-nast]    =label_m2
             min_chi2[teststar-nast]    =smallest_chi2
+            snr_vals[teststar-nast]    =snr
             model_spectra.append(spectrum_m1)
-            print('  star: {}'.format(round(time.time()-s0,2)))
+            print('  time taken: {}'.format(round(time.time()-s0,2)))
             print('\n')
         except:
             # if model can't find a best fit:
@@ -228,8 +277,7 @@ def getinferredlabels(trainlabels,traindata,nstars,allfiles):
             model_spectra.append([-99])
     print('\n','total time taken:',time.time()-totalstart)
     print('End:',datetime.datetime.now())
-    return testlabels,infer_avg,infer_m1,model_spectra,infer_m2,min_chi2
-
+    return testlabels,infer_avg,infer_m1,model_spectra,infer_m2,min_chi2,snr_vals
 
 '''def getinferredlabels(trainlabels,traindata,testdata_file):
     print('Getting test data...')
@@ -357,26 +405,6 @@ def gettraindata(text_files,pickle_files):
     print('     ','took {}s.'.format(datetime.datetime.now()-begintime))
     return labels,alldata,total_stars,allfiles
 
-dp='baseline_cuts/65_days/LLR_gaia/'
-da='baseline_cuts/65_days/LLR_seismic/'
-train_file_names =[dp+'pande_pickle_1',dp+'pande_pickle_2',dp+'pande_pickle_3',da+'astero_final_sample_1',da+'astero_final_sample_2',da+'astero_final_sample_3',da+'astero_final_sample_4']    
-#train_file_names =['pande_pickle_1','pande_pickle_2','pande_pickle_3','astero_final_sample_1','astero_final_sample_2','astero_final_sample_3','astero_final_sample_4']
-train_file_pickle=[i+'_memmap.pickle' for i in train_file_names]
-train_file_txt   =[i+'.txt' for i in train_file_names]
-
-
-# In[6]:
-print('Getting training data...')
-train_labels,train_data,total_stars,all_files=gettraindata(train_file_txt,train_file_pickle)
-print('Beginning inference...')
-testlabels,average,labelm1,modelm1,labelm2,min_chi2=getinferredlabels(train_labels,train_data,total_stars,all_files)
-dirr='/Users/maryumsayeed/Desktop/HuberNess/mlearning/powerspectrum/baseline_cuts/65_days/LLR_gaia/'
-np.save(dirr+'testlabels.npy',testlabels)
-np.save(dirr+'average.npy',average)
-np.save(dirr+'labels_m1.npy',labelm1)
-np.save(dirr+'labels_m2.npy',labelm2)
-np.save(dirr+'spectra_m1.npy',modelm1)
-np.save(dirr+'min_chi2.npy',min_chi2)
 #print(min_chi2)
 # In[8]:
 
@@ -443,258 +471,50 @@ def plotresults(testlabels,infer,model_1,model_2):
     plt.legend(loc=1)
     
     #plt.suptitle('Logg - 10 neighbours')
-    plt.savefig(dirr+'part1.png')
+    plt.savefig(savedir+'results.png')
     # plt.show()
     print('average',std_avg,rms_av,bias_av)
     print('model_1',std_m1,rms_m1,bias_m1)
     print('model_2',std_m2,rms_m2,bias_m2)
 
-
 # In[13]:
-
 
 #plotresults(testlabels[6000+5412:6000+5412+len(average)],average,labelm1,labelm2)
 # if analyzing pande. sample: start = 0
 # if analyzing astero. sample: start = 5964
-start=0
 
-plotresults(testlabels[start:start+len(average)],average,labelm1,labelm2)
+if __name__ == '__main__':
+    savedir='/Users/maryumsayeed/Desktop/HuberNess/mlearning/powerspectrum/{}/'.format(dirr)
+    print(savedir)
+    if not os.path.isdir(savedir):
+        print('The path specified does not exist:',savedir)
+        sys.exit()
 
-# In[11]:
+    dp='GAIA_add_noise_to_1_star/'
+    da='GAIA_add_noise_to_1_star/'
+    # dp='LLR_gaia/'
+    # da='LLR_seismic/'
+    train_file_names =[dp+'pande_pickle_1',dp+'pande_pickle_2',dp+'pande_pickle_3',da+'astero_final_sample_1',da+'astero_final_sample_2',da+'astero_final_sample_3',da+'astero_final_sample_4']    
+    #train_file_names =['pande_pickle_1','pande_pickle_2','pande_pickle_3','astero_final_sample_1','astero_final_sample_2','astero_final_sample_3','astero_final_sample_4']
+    train_file_pickle=[i+'_memmap.pickle' for i in train_file_names]
+    train_file_txt   =[i+'.txt' for i in train_file_names]
+
+    # In[6]:
+    print('Getting training data...')
+    train_labels,train_data,total_stars,all_files=gettraindata(train_file_txt,train_file_pickle)
+    print('Beginning inference...')
+    testlabels,average,labelm1,modelm1,labelm2,min_chi2,snr_vals=getinferredlabels(train_labels,train_data,total_stars,all_files)
+    
+    np.save(savedir+'testlabels.npy',testlabels)
+    np.save(savedir+'average.npy',average)
+    np.save(savedir+'labels_m1.npy',labelm1)
+    np.save(savedir+'labels_m2.npy',labelm2)
+    np.save(savedir+'spectra_m1.npy',modelm1)
+    np.save(savedir+'min_chi2.npy',min_chi2)
+    np.save(savedir+'snr_vals.npy',snr_vals)
+
+    start=START#5964
+    plotresults(testlabels[start:start+len(average)],average,labelm1,labelm2)
 
 
 exit()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#np.memmap info: DO NOT DELETE
-'''print('Making memmap file...')
-    memmap_filename='test.array'
-
-    a=np.memmap(memmap_filename,dtype=np.float64, mode='w+', shape=(21000,data_lengths[0],3))
-    a[:,:,:]=allpickledata[0]
-    del a
-    
-    print('Appending to memmap file...')
-    for i in range(1,len(data_lengths)):
-        b=np.memmap(memmap_filename, dtype=np.float64, mode='r+', shape=(21000,data_lengths[i],3),order='F')
-        b[:,:,:]=allpickledata[i]
-        del b
-        
-    alldata=np.memmap(memmap_filename, dtype=np.float64, mode='r+', shape=(21000,star_count,3))
-    print('Shape of memmap file:',np.shape(alldata))
-    a=np.memmap('alldata.array',dtype=np.float64, mode='w+', shape=(21000,star_count,3))
-    a[:,:,:]=alldata
-    del a
-    alldata=np.memmap('alldata.array',dtype=np.float64, mode='r', shape=(21000,star_count,3))
-    '''
-
-
-# In[ ]:
-
-
-# Get Kps for all stars:
-kpfile   ='/Users/maryumsayeed/Desktop/HuberNess/mlearning/hrdmachine/KIC_Kepmag_Berger2018.csv'
-df       =pd.read_csv(kpfile,usecols=['KIC','kic_kepmag'])
-kp_kics  =list(df['KIC'])
-allkps      =list(df['kic_kepmag'])
-gaia     =ascii.read('/Users/maryumsayeed/Desktop/HuberNess/mlearning/powerspectrum/DR2PapTable1.txt',delimiter='&')
-
-# Get loggs:
-loggs=np.loadtxt('/Users/maryumsayeed/Desktop/HuberNess/mlearning/hrdmachine/KIC_loggs.txt',skiprows=1,delimiter=',',usecols=[0,1])
-logg_kic1=loggs[:,0]
-logg_vals1=loggs[:,1]
-loggs=np.genfromtxt('/Users/maryumsayeed/Desktop/HuberNess/mlearning/hrdmachine/KIC_loggs_2.txt',skip_header=True,delimiter=',',usecols=[0,1,4])#,dtype=['i4','f4','f4'])
-logg_kic2=loggs[:,0]
-logg_vals2=loggs[:,1]
-logg_kic=list(logg_kic1)+list(logg_kic2)
-logg_vals=list(logg_vals1)+list(logg_vals2)
-logg_kic=[int(i) for i in logg_kic]
-
-
-# In[ ]:
-
-
-print('bias','RMS')
-print(returnscatter(testlabels-av))
-print(returnscatter(testlabels-labelm1))
-print(returnscatter(testlabels-labelm2))
-
-
-idx=np.where((abs(testlabels-labelm1)>0.2))[0]
-print(len(idx))
-idx=idx[0:5]
-
-a=open(test_file,'rb')
-testdata=pickle.load(a)
-a.close()
-
-for star in idx:
-    file=testdata[-1][star][0:-3]
-    kic=re.search('kplr(.*)-', file).group(1)
-    kic=int(kic.lstrip('0'))
-    kp =allkps[kp_kics.index(kic)]
-    idx=np.where(gaia['KIC']==kic)
-    t=gaia['teff'][idx][0]
-    r=gaia['rad'][idx][0]
-    l=r**2.*(t/5777.)**4.
-    
-    time,flux,f,amp,pssm=getps(file,1)
-    kic=file.split('/')[-1].split('-')[0].split('kplr')[-1]
-    kic=int(kic.lstrip('0'))
-    test =10.**testdata[0][:,star,1] #compare log(PSD) values
-    
-    model=10.**modelm1[star] #compare log(PSD) values
-    plt.figure(figsize=(20,5))
-    plt.subplot(121)
-    plt.plot(time,flux,linewidth=1)
-    plt.title('lightcurve of test star',fontsize=20)
-    plt.subplot(122)
-    plt.loglog(f,amp,c='grey',alpha=0.3,linewidth=1)
-    plt.loglog(f[864:21000+864],test,c='k',label='smoothed')
-    plt.loglog(f[864:864+21000],pssm[864:864+21000],c='cyan',label='smoothed')
-    plt.loglog(f[864:864+21000],model,c='r',label='model')
-    #plt.title('KICID: {}'.format(str(kic)),fontsize=20)
-    plt.title('KICID: {} Teff: {} Lum: {} Kp: {}'.format(str(kic),t,round(l,2),round(kp,2)),fontsize=20)
-
-    a=round(testlabels[star],2)
-    b=round(labelm1[star],2)
-    plt.text(10,10**4.,s='True: {} Pred.: {}'.format(a,b),fontsize=20,ha='left')
-    plt.xlim([8,300])
-    plt.ylim([0.1,1e5])
-    plt.xlabel('Frequency ($\mu$Hz)')
-    plt.ylabel(r'PSD (ppm$^2$/$\mu$Hz)')
-    plt.legend()
-    plt.tight_layout()
-    d='/Users/maryumsayeed/plotsfornextweek/plotforjuly19/logg/draft2/bad/'
-    #plt.savefig(d+str(kic)+'.pdf')
-    plt.show()
-    plt.clf()
-
-
-# In[ ]:
-
-
-stop
-import os,glob
-from PyPDF2 import PdfFileMerger
-d='/Users/maryumsayeed/plotsfornextweek/plotforjuly19/logg/draft2/bad/'
-pdfs=glob.glob(d+'*.pdf')
-merger = PdfFileMerger()
-for pdf in pdfs:
-    p=pdf
-    merger.append(p)
-merger.write(d+"sigma>0.15.pdf")
-
-
-# In[ ]:
-
-
-
-
-
-# In[ ]:
-
-
-def sigclip(x,y,subs,sig):
-    keep = np.zeros_like(x)
-    start=0
-    end=subs
-    nsubs=int((len(x)/subs)+1)
-    for i in range(0,nsubs):        
-        me=np.mean(y[start:end])
-        sd=np.std(y[start:end])
-        good=np.where((y[start:end] > me-sig*sd) & (y[start:end] < me+sig*sd))[0]
-        keep[start:end][good]=1
-        start=start+subs
-        end=end+subs
-    return keep
-def getclosest(num,collection):
-    '''Given a number and a list, get closest number in the list to number given.'''
-    return min(collection,key=lambda x:abs(x-num))
-
-def getkp(file):
-    kic=re.search('kplr(.*)-', file).group(1)
-    kic=int(kic.lstrip('0'))
-    kp=allkps[kp_kics.index(kic)]
-    if kp in whitenoise[:,0]:
-        idx=np.where(whitenoise[:,0]==kp)[0]
-        closestkp=whitenoise[idx,0][0]
-        wnoise=whitenoise[idx,1][0]
-        #print(closestkp,wnoise)
-    else:
-        closestkp=getclosest(kp,whitenoise[:,0])
-        idx=np.where(whitenoise[:,0]==closestkp)[0]
-        wnoise=whitenoise[idx,1][0]
-        #print(closestkp,wnoise)
-    return wnoise
-
-
-def getps(file,day):
-    data=fits.open(file)
-    head=data[0].data
-    dat=data[1].data
-    time=dat['TIME']
-    qual=dat['SAP_QUALITY']
-    flux=dat['PDCSAP_FLUX']
-
-    good=np.where(qual == 0)[0]
-    time=time[good]
-    flux=flux[good]
-    res =sigclip(time,flux,50,3)
-    good=np.where(res == 1)[0]
-    time=time[good]
-    flux=flux[good]
-    width=day
-    boxsize=width/(30./60./24.)
-    box_kernel = Box1DKernel(boxsize)
-    smoothed_flux = savgol(flux,int(boxsize)-1,1,mode='mirror')
-    flux=flux/(smoothed_flux)
-
-    yq=1./(30./60./24.)
-    fres=1./90./0.0864
-
-    fres_cd=0.001
-    fres_mhz=fres_cd/0.0864
-
-    freq = np.arange(0.001, 24., 0.001)
-    amp = LombScargle(time,flux).power(freq)
-
-    # unit conversions
-    freq = 1000.*freq/86.4
-    bin = freq[1]-freq[0]
-    amp = 2.*amp*np.var(flux*1e6)/(np.sum(amp)*bin)
-
-    # smooth by 2 muHz
-    n=np.int(2./fres_mhz)
-
-    gauss_kernel = Gaussian1DKernel(n)
-    pssm = convolve(amp, gauss_kernel)
-#     wnoise=getkp(file)
-#     print('white noise:',wnoise)
-#     pssm = pssm-wnoise
-    
-    return time,flux,freq,amp,pssm
-
-
-# In[ ]:
-
-
-
-

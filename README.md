@@ -10,3 +10,7 @@ This is the code to use local linear regression on lightcurves to infer stellar 
 ## License
 Copyright 2020 the authors. LLR_lightcurve is free software made available under the MIT License. For details see the file [LICENSE.md](LICENSE.md).
 
+## At a Glance:
+* Run quicklook.py on light curves to generate power spectra.
+* Run psmaketrainfile_one.py to convert stellar power spectra to log(power spectra).
+* Run LLR_logg.py to run local linear regression on both samples.

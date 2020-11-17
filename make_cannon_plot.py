@@ -46,7 +46,7 @@ def returnscatter(diffxy):
 
 
 def get_plot(sample,n):
-	teststars=np.loadtxt(dd+'{}/Cannon_test_stars.txt'.format(sample),usecols=[0],dtype='str')
+	teststars=np.loadtxt(dd+'{}/testing_cannon.txt'.format(sample),usecols=[0],dtype='str')
 
 	pf=open(dd+'{}/testmetaall_cannon_logg.pickle'.format(sample),'rb') 
 	testmetaall,truemetaall=pickle.load(pf)
@@ -80,7 +80,7 @@ def get_plot(sample,n):
 	# print(list(kics[idx]))
 	# exit()
 	ax1.plot(true,true,c='k',linestyle='dashed')
-	ax1.scatter(true,infer,facecolors='grey', edgecolors='k',s=10)
+	ax1.scatter(true,infer,facecolors='grey', edgecolors='k',s=4,alpha=0.5)
 	# ax1.scatter(true[idx],infer[idx],c='r',s=10)
 	ax1.minorticks_off()
 	locs, labels = plt.yticks()
@@ -94,7 +94,7 @@ def get_plot(sample,n):
 	ax1.set_ylim([1.9,4.8])
 	
 	ax2 = plt.subplot(gs[b1:b2, x1:x2])
-	ax2.scatter(true,true-infer,edgecolor='k',facecolor='grey',s=10)
+	ax2.scatter(true,true-infer,edgecolor='k',facecolor='grey',s=4,alpha=0.5)
 	ax2.axhline(0,c='k',linestyle='dashed')
 	ax2.set_xlabel('True Logg [dex]')
 	
@@ -122,8 +122,8 @@ def get_plot(sample,n):
 	a02=np.where(true>=3.5)[0]
 	a1=np.where((true<3.5) & (diff>0))[0]
 	a2=np.where((true>=3.5) & (diff>0))[0]
-	#print('pred>true','logg < 3.5',len(a1)/len(a01))
-	#print('pred>true','logg > 3.5',len(a2)/len(a02))
+	print('pred>true','logg < 3.5',len(a1)/len(a01))
+	print('pred>true','logg > 3.5',len(a2)/len(a02))
 
 	below=np.where(true<3.5)[0]
 	bias_below,rms_below=returnscatter(true[below]-infer[below])
@@ -164,5 +164,5 @@ get_plot('cannon_vs_LLR/one_label',1)
 plt.tight_layout()
 plt.subplots_adjust(wspace=0)
 # plt.show(True)
-plt.savefig(dd+'1.png',dpi=100,bbox_inches='tight')
+# plt.savefig('one_label.png',dpi=100,bbox_inches='tight')
 	

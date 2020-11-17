@@ -3,14 +3,15 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import re
 from astropy.stats import mad_std
+from astropy.io import ascii
 
-pcat=pd.read_csv('LLR_gaia/Gaia_Catalogue.txt',skiprows=1,usecols=[0,19],index_col=False,delimiter=';',names=['KIC','Outlier'])
-acat=pd.read_csv('LLR_seismic/Seismic_Catalogue.txt',skiprows=1,usecols=[0,19],index_col=False,delimiter=';',names=['KIC','Outlier'])
+pcat=ascii.read('LLR_gaia/Gaia_Sample_v5.csv')#,skiprows=1,usecols=[0,19],index_col=False,names=['KIC','Outlier'])
+acat=ascii.read('LLR_seismic/Seismic_Sample_v5.csv')#,skiprows=1,usecols=[0,19],index_col=False,names=['KIC','Outlier'])
 
 acat=acat[acat['Outlier']==0]
 pcat=pcat[pcat['Outlier']==0]
 
-pcat,acat=np.array(pcat['KIC']),np.array(acat['KIC'])
+pcat,acat=np.array(pcat['KICID']),np.array(acat['KICID'])
 print(len(pcat),len(acat))
 
 afile1=np.loadtxt('baseline_cuts/astero_final_sample_1.txt',dtype=str,delimiter=' ')#,usecols=[0])
@@ -130,6 +131,9 @@ pb27,pr27,ps27=get_plot(pt,p27,'27',2)
 pb48,pr48,ps48=get_plot(pt,p48,'48',3)
 pb65,pr65,ps65=get_plot(pt,p65,'65',4)
 
+#print(pr27,prf,(pr27-prf)/prf)
+#print(ps27,psf,(ps27-psf)/psf)
+
 # ASTERO
 print('\n','SEISMIC')
 bf,arf,asf=get_plot(at,af,'Full',1)
@@ -138,6 +142,13 @@ b27,ar27,as27=get_plot(at,a27,'27',2)
 b48,ar48,as48=get_plot(at,a48,'48',3)
 b65,ar65,as65=get_plot(at,a65,'65',4)
 
+#print(ar27,arf,(ar27)/arf)
+#print(as27,asf,(as27)/asf)
+
+
+print(ar14,as14,ar27,as27)
+print(pr14,ps14,pr27,ps27)
+exit()
 fig=plt.figure(figsize=(5,8))
 xls=['14','27','48','65','96'] 
 
@@ -175,7 +186,8 @@ for i in range(0,len(xls)):
 	print(xls[i],'P',pys[i],'A',ays[i])
 plt.show(False)
 
-print((as14-asf)/asf)
-print(as14,asf)
+
+
 # plt.savefig('timeseries_paper_plot.png',dpi=100,bbox_inches='tight')
+# plt.savefig('Maryum_1.png',dpi=100,bbox_inches='tight')
 exit()

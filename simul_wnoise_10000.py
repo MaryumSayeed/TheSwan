@@ -2,7 +2,6 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import pdb
-import kplr
 import fnmatch
 from astropy.convolution import convolve, Gaussian1DKernel, Box1DKernel
 from astropy.stats import LombScargle
@@ -13,7 +12,7 @@ import time as TIME
 from astropy.io import ascii
 import matplotlib.gridspec as gridspec
 from astropy.stats import mad_std
-
+from statistics import mode
 # subroutine to perform rough sigma clipping
  
 
@@ -24,7 +23,7 @@ kpfile   ='/Users/maryumsayeed/Desktop/HuberNess/mlearning/hrdmachine/KIC_Kepmag
 df       =pd.read_csv(kpfile,usecols=['KIC','kic_kepmag'])
 kp_kics  =list(df['KIC'])
 kps      =list(df['kic_kepmag'])
-
+gaia=ascii.read('DR2PapTable1.txt',delimiter='&')
 data=ascii.read('smoothing_relation/width_vs_radius_test1.txt',delimiter= ' ')
 fit_radii,fit_width=np.array(data['Radii']),np.array(data['Width'])
 
@@ -68,23 +67,99 @@ def getkp(file):
 
 # main program starts here
 if __name__ == '__main__':
-    gaia=ascii.read('DR2PapTable1.txt',delimiter='&')
-    #pltfigure(figsize=(15,10))
-
     # investigate wnoise fraction in power spectra
+    d='/Users/maryumsayeed/Desktop/pande/pande_lcs/'
+    files=glob.glob(d+'*.fits')[0:1000]
+    # files=np.concatenate([files,files])
     start=TIME.time()
-    factor_of_noise_added=np.logspace(0.001, 4, num=npoints)
-    factor_of_noise_added=factor_of_noise_added/1e6
-    wnoise_level=[]
-    power_above=np.zeros(len(factor_of_noise_added))
+    npoints=len(files)
+    # npoints=10000
+    # factor_of_noise_added=np.logspace(0.001, 4, num=npoints)
+    # factor_of_noise_added=factor_of_noise_added/1e6
+    wnoise_level=np.zeros(npoints)
+    power_above=np.zeros(npoints)
     
-    ti,tf=809.5780163868912,905.9259315179515
-    time_in = np.arange(ti,tf,30./(60.*24.))
+    for i in range(0,len(files)):
+        data=fits.open(files[i])
+        head=data[0].data
+        dat=data[1].data
+        time=dat['TIME']
+        qual=dat['SAP_QUALITY']
 
-    for k in range(len(factor_of_noise_added)):
-        frac=factor_of_noise_added[k]
-        flux_in=np.random.randn(len(time_in))*frac
+        # only keep data with good quality flags
+        good=np.where(qual == 0)[0]
+        time=time[good]
         
+        # Check Duty Cycle:
+        ndays=time[-1]-time[0]
+        nmins=ndays*24.*60.
+        expected_points=nmins/30.
+        observed_points=len(time)
+        if observed_points < expected_points*0.5:
+            # nstars_below_duty_cycle+=1
+            # kics_below_duty_cycle.append(kicid)
+            # print(kicid,'below')
+            continue
+
+        # UNCOMMENT for long-cadence data!
+        if time[-1]-time[0] < 89.: # remove photometry below 89 days from the sample
+            # stars_less_than_89_days.append(kicid)
+            continue
+
+
+        # ti,tf=809.5780163868912,905.9259315179515
+        ti,tf=time[0],time[-1]
+        frac=1
+        np.random.seed(0) 
+        flux    = np.random.randn(len(time))*frac
+    
+        (values,counts) = np.unique(np.diff(time),return_counts=True)
+        cadence=values[np.argmax(counts)]
+        
+        time_in = np.arange(ti,tf,cadence) # timestamps interpolated at observed cadence
+        flux_in = np.interp(time_in, time, flux) # interpolated flux
+
+        # plt.figure(figsize=(10,8))
+        # plt.subplot(311)     
+        # plt.plot(time,flux,lw=1)
+        # plt.scatter(time,flux,label='observed star',s=10,c='k')
+        # plt.title('observed star')
+        # plt.xlim(844,848)
+
+        # plt.subplot(312)
+        # plt.plot(time_in,flux_in,lw=1)
+        # plt.scatter(time_in,flux_in,s=10,\
+        #     label='gap filled @ {} min cadence (aka cadence of test star)'.format(int(cadence*60*24)))
+        
+        # time_in = np.arange(ti,tf,30./(60.*24.)) # timestamps interpolated at observed cadence
+        # flux_in = np.interp(time_in, time, flux) # interpolated flux
+        # plt.plot(time_in,flux_in,lw=1)
+        # plt.scatter(time_in,flux_in,s=5,label='gap filled @ 30 min cadence')
+        # plt.title('observed star with gap filled')
+        # plt.xlim(844,848)
+        # plt.legend()
+        
+        # plt.subplot(313)
+        # time_exp = np.arange(ti,tf,cadence) # discrete points at some min cadence
+        # flux_exp = np.random.randn(len(time_exp))*frac
+        # time_in,flux_in=time_exp,flux_exp
+
+        # plt.plot(time_exp,flux_exp,lw=1)
+        # plt.scatter(time_exp,flux_exp,label='discrete time stamps (test star cadence)',s=10)
+        
+        # time_exp = np.arange(ti,tf,30./(60.*24.)) # discrete points at 30 min cadence
+        # flux_exp = np.random.randn(len(time_exp))*frac
+        # time_in,flux_in=time_exp,flux_exp        
+
+        # plt.plot(time_exp,flux_exp,lw=1)
+        # plt.scatter(time_exp,flux_exp,label='discrete time stamps @ 30 min cadence',s=10)
+        # plt.title('simulated star with ')
+        # plt.xlim(844,848)
+        # plt.tight_layout()
+        # plt.legend()
+        # plt.show()
+        # exit()
+
         # now let's calculate the fourier transform. the nyquist frequency is:
         nyq=0.5/(30./60./24.)
         fres=1./90./0.0864
@@ -99,18 +174,6 @@ if __name__ == '__main__':
         freq = 1000.*freq/86.4
         bin = freq[1]-freq[0]
         amp_in = 2.*amp_in*np.var(flux_in*1e6)/(np.sum(amp_in)*bin)
-
-        # plt.figure(figsize=(15,6))
-        # plt.subplot(211)
-        # plt.plot(time_in,flux_in,linewidth=1)
-        # plt.plot(time_in2,flux_in2,linewidth=1)
-        # plt.subplot(212)
-        # plt.loglog(freq,amp_in,linewidth=1,alpha=0.7)
-        # plt.loglog(freq,amp_in2,linewidth=1,alpha=0.7)
-        # plt.xlim([1.,600])
-        # plt.ylim(1e-7,1e7)
-        # plt.tight_layout()
-        # plt.show(False)
 
         # White noise correction:
         amp=amp_in
@@ -136,18 +199,18 @@ if __name__ == '__main__':
         wnpssm = convolve(amp_wn, gauss_kernel)
 
         snr=power_more_than_wnoise/len(amp)
-        power_above[k]=snr
-        wnoise_level.append(wnoise)
+        power_above[i]=snr
+        wnoise_level[i]=wnoise
 
-        print(k,frac,wnoise,snr)
+        print(i,frac,wnoise,snr)
 
-        ascii.write([factor_of_noise_added,wnoise_level,power_above],'/Users/maryumsayeed/LLR_updates/Oct12/wnoise_simul_{}.txt'.format(npoints),names=['Factor','Wnoise','Fraction'],overwrite=True)
+    ascii.write([[1]*npoints,wnoise_level,power_above],'/Users/maryumsayeed/LLR_updates/Oct19/wnoise_simul_{}.txt'.format(npoints),names=['Factor','Wnoise','Fraction'],overwrite=True)
 
     # for loop ends here:
     # if 'pande' in d:
     #     sample='pande'
     # else:
     #     sample='astero'
-    print('Time taken for {} files:'.format(nfiles),TIME.time()-start)
+    print('Time taken for {} files:'.format(npoints),TIME.time()-start)
     # save text file with 
     

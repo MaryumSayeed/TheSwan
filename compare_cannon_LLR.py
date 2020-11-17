@@ -53,6 +53,8 @@ def getkp(file):
         #print(closestkp,wnoise)
     return wnoise
 
+
+# FIX CADENCE ISSUE!
 def get_amp(file):
 	'''Given star's filename, get its frequency &
 	white noise corrected power spectral density.'''
@@ -127,10 +129,13 @@ def get_amp(file):
 
 	freq = np.arange(0.01, 24., 0.01) # critically sampled
 
+	(values,counts) = np.unique(np.diff(time),return_counts=True)
+	cadence=values[np.argmax(counts)]
+
 	#pdb.set_trace()
 	# FT magic
 	#freq, amp = LombScargle(time,flux).autopower(method='fast',samples_per_peak=10,maximum_frequency=nyq)
-	time_interp = np.arange(time[0],time[-1],30./(60.*24.))
+	time_interp = np.arange(time[0],time[-1],cadence)
 	flux_interp = np.interp(time_interp, time, flux)
 	time,flux   = time_interp,flux_interp
 	amp  = LombScargle(time,flux).power(freq)
@@ -170,7 +175,7 @@ def get_amp(file):
 	return freq,amp
 
 # Get Kps for all stars:
-whitenoise=np.loadtxt('/Users/maryumsayeed/Desktop/HuberNess/mlearning/hrdmachine/whitenoisevalues.txt',skiprows=1,delimiter=',')
+whitenoise=np.loadtxt('/Users/maryumsayeed/Desktop/HuberNess/mlearning/powerspectrum/SC_sayeed_relation.txt',skiprows=1,delimiter=' ')
 kpfile   ='/Users/maryumsayeed/Desktop/HuberNess/mlearning/hrdmachine/KIC_Kepmag_Berger2018.csv'
 df       =pd.read_csv(kpfile,usecols=['KIC','kic_kepmag'])
 kp_kics  =list(df['KIC'])
@@ -185,7 +190,7 @@ kepler_catalogue=pd.read_csv('/Users/maryumsayeed/Desktop/HuberNess/mlearning/hr
 # Load Cannon files & results:
 d1='cannon_vs_LLR/one_label/'
 d2='cannon_vs_LLR/two_labels/'
-cannon_test_files=np.loadtxt(d1+'Cannon_test_stars.txt',usecols=[0],dtype='str')
+cannon_test_files=np.loadtxt(d1+'testing_cannon.txt',usecols=[0],dtype='str')
 pf=open(d1+'testmetaall_cannon_logg.pickle','rb') 
 testmetaall,truemetaall=pickle.load(pf)
 pf.close() 
@@ -271,18 +276,14 @@ LLR_infer=np.array(LLR_infer)
 # plt.scatter(cannon_true,cannon_infer,c='k')
 # plt.scatter(cannon_true,LLR_infer,c='r')
 # plt.show(False)
-for i in range(0,len(cannon_test_files)):
-	file=cannon_test_files[i]
-	kicid=int(file.split('/')[-1].split('-')[0].split('kplr')[-1].lstrip('0'))
-	if kicid in [6122418,3632803,11716673]:
-		print(i,kicid)
+
 # exit()
 # Pick 2 stars:
-giant=np.where((cannon_true>2.7) & (cannon_true<2.74) & (abs(cannon_true - cannon_infer)<0.05))[0]  #kicid: 6122418 idx=4
+giant=np.where((cannon_true>2.7) & (cannon_true<2.74) & (abs(cannon_true - cannon_infer)<0.05))[0][2]  #kicid: 7438781 idx=2
 
 mid=np.where((cannon_true>3.0) & (cannon_true<3.2) & (abs(cannon_true - cannon_infer)<0.05))[0][3]   #kicid: 3632803, idx=3
 
-dwarf=np.where((cannon_true>3.94) & (abs(cannon_true - cannon_infer)<0.1))[0][108]   #kicid: 11716673, idx=108
+dwarf=np.where((cannon_true>3.94) & (abs(cannon_true - cannon_infer)<0.1))[0][107]#[1]   #kicid: 7033676, idx=107
 def get_info(stars):
 	test_kics=[]
 	for i in range(len(stars)):
@@ -291,15 +292,21 @@ def get_info(stars):
 		#print(i,cannon_true[dwarf][i],cannon_infer[dwarf][i],LLR_infer[dwarf][i],r'diff LLR<Cannon',b<a)
 		file=cannon_test_files[stars][i]
 		kicid=int(file.split('/')[-1].split('-')[0].split('kplr')[-1].lstrip('0'))
-		if b<a:
-		# if kicid==3735447:
+		# if b<a:
+		if kicid==10817734:
 			# print(kicid)
 			print(i,kicid,cannon_true[stars][i],cannon_infer[stars][i],LLR_infer[stars][i],r'diff LLR<Cannon',b<a)
 			test_kics.append(kicid)
 	print(test_kics)
-# get_info(giant)
-# exit()
-giant,mid,dwarf=2611,2790,1398
+# get_info(dwarf)
+
+for i in range(0,len(cannon_test_files)):
+	file=cannon_test_files[i]
+	kicid=int(file.split('/')[-1].split('-')[0].split('kplr')[-1].lstrip('0'))
+	if kicid in [7438781,3632803,7033676,10817734]:
+		print(i,kicid)
+
+giant,mid,dwarf=2199,2790,1383 #2611 # index in cannon_test_files
 
 print('Giant',int(cannon_test_files[giant].split('/')[-1].split('-')[0].split('kplr')[-1].lstrip('0')))
 print('Subgiant',int(cannon_test_files[mid].split('/')[-1].split('-')[0].split('kplr')[-1].lstrip('0')))
@@ -382,8 +389,8 @@ ax.set_xticks([])
 
 llrcolor  ='#404788FF'
 cancolor  ='tab:green'
-llrlabel  ='LLM-LC Best Fit Model'
-canlabel  ='Cannon Best Fit Model'
+llrlabel  ="The Swan's Best Fit Model"
+canlabel  ="The Cannon's Best Fit Model"
 
 ax1 = fig.add_subplot(3,1,1)
 spaces=''
@@ -402,7 +409,7 @@ true_label=str(round(cannon_true[giant],2))
 sl=len('True Logg: ')
 s1='True Logg: {0:.2f} dex'.format(float(true_label))
 s2='Cannon: '.ljust(sl+1)+'{0:.2f} dex'.format(labels[i][0])
-s3='LLM-LC: '.ljust(sl+2)+'{0:.2f} dex'.format(LLR_infer[giant][0])
+s3='Swan:'.ljust(sl+3)+'{0:.2f} dex'.format(LLR_infer[giant][0])
 STR=s1+'\n'+s2+'\n'+s3
 print(STR)
 # exit()
@@ -429,7 +436,7 @@ true_label=str(round(cannon_true[mid],2))
 sl=len('True Logg: ')
 s1='True Logg: {0:.2f} dex'.format(float(true_label))
 s2='Cannon: '.ljust(sl+1)+'{0:.2f} dex'.format(labels[i][0])
-s3='LLM-LC: '.ljust(sl+2)+'{0:.2f} dex'.format(LLR_infer[mid][0])
+s3='Swan:'.ljust(sl+3)+'{0:.2f} dex'.format(LLR_infer[mid][0])
 STR=s1+'\n'+s2+'\n'+s3
 print(STR)
 t=ax2.text(0.03,0.2,s=STR,color='k',ha='left',va='center',transform = ax2.transAxes)
@@ -452,7 +459,7 @@ true_label=str(round(cannon_true[dwarf],2))
 sl=len('True Logg: ')
 s1='True Logg: {0:.2f} dex'.format(float(true_label))
 s2='Cannon: '.ljust(sl+1)+'{0:.2f} dex'.format(labels[i][0])
-s3='LLM-LC: '.ljust(sl+2)+'{0:.2f} dex'.format(LLR_infer[dwarf][0])
+s3='Swan:'.ljust(sl+3)+'{0:.2f} dex'.format(LLR_infer[dwarf][0])
 STR=s1+'\n'+s2+'\n'+s3
 print(STR)
 

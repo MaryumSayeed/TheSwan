@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 import csv
 import matplotlib.pyplot as plt
-filename='LLR_gaia/Gaia_Sample_v1.csv'
+filename='LLR_gaia/Gaia_Sample_v5.csv'
 # kics = np.loadtxt(filename,skiprows=1,usecols=[0],dtype=str)
 # dat = np.loadtxt(filename,skiprows=1,dtype=float)
 w=[]
@@ -70,7 +70,7 @@ for line in w:
   outF.write("\n")
 outF.close()
 
-filename='LLR_seismic/Seismic_Sample_v1.csv'
+filename='LLR_seismic/Seismic_Sample_v5.csv'
 header = ['KICID','Kp', 'Teff', 'Radius','Radp','Radn','True_Logg','Loggp','Loggn','Inferred_Logg','ILoggp','ILoggn','True_Mass','TMassp','TMassn','Inferred_Mass','IMassp','IMassn','SNR','Outlier'] 
 df = pd.read_csv(filename,names=header,skiprows=1)
 

@@ -29,7 +29,7 @@ plt.rcParams['axes.linewidth'] = 1.
 print('Loading in catalogues...')
 gaia     =ascii.read('/Users/maryumsayeed/Desktop/HuberNess/mlearning/powerspectrum/DR2PapTable1.txt',delimiter='&')
 kepler_catalogue=pd.read_csv('/Users/maryumsayeed/Desktop/HuberNess/mlearning/hrdmachine/GKSPC_InOut_V4.csv')#,skiprows=1,delimiter=',',usecols=[0,1])
-whitenoise=np.loadtxt('/Users/maryumsayeed/Desktop/HuberNess/mlearning/hrdmachine/whitenoisevalues.txt',skiprows=1,delimiter=',')
+whitenoise=np.loadtxt('/Users/maryumsayeed/Desktop/HuberNess/mlearning/powerspectrum/SC_sayeed_relation.txt',skiprows=1,delimiter=' ')
 kpfile   ='/Users/maryumsayeed/Desktop/HuberNess/mlearning/hrdmachine/KIC_Kepmag_Berger2018.csv'
 df       =pd.read_csv(kpfile,usecols=['KIC','kic_kepmag'])
 kp_kics  =list(df['KIC'])
@@ -399,8 +399,8 @@ def fit_power_radius(radii,power):
 	gs = gridspec.GridSpec(4, 4,hspace=0)
 
 	ax1 = plt.subplot(gs[0:3, 0:4])
-	ax1.scatter(x,y,c=remove_c,s=ms,label='Removed')
-	ax1.scatter(x[keep],y[keep],c=keep_c,s=ms)
+	ax1.scatter(x,y,c='lightcoral',s=ms,label='Removed')
+	ax1.scatter(x[keep],y[keep],c='k',s=ms,alpha=0.7)
 	xfit=xdata[np.where(xdata<np.log10(20.))[0]]
 	ax1.plot(10.**(xfit),10.**(logfit(xfit,a,b)),c='k',label='Linear Best fit')
 	ax1.set_axisbelow(True)
@@ -424,8 +424,8 @@ def fit_power_radius(radii,power):
 
 	ax2.axhline(0,c='k',linestyle='dashed')
 	yfit=linfit(x,a,b)
-	ax2.scatter(x,yfit/y,c=remove_c,s=ms)
-	ax2.scatter(x[keep],(yfit/y)[keep],c=keep_c,s=ms)
+	ax2.scatter(x,yfit/y,c='lightcoral',s=ms)
+	ax2.scatter(x[keep],(yfit/y)[keep],c='k',s=ms,alpha=0.7)
 	plt.xscale('log')
 	plt.yscale('log')
 	plt.minorticks_on()
@@ -439,8 +439,9 @@ def fit_power_radius(radii,power):
 	plt.grid(b=True, which='major', linestyle='-', alpha=0.2)
 	plt.grid(b=True, which='minor', linestyle='-', alpha=0.2)
 	plt.tight_layout()
-	# plt.savefig('astero_power_radius.png',bbox_inches='tight',dpi=100)
+	plt.savefig('astero_power_radius.png',bbox_inches='tight',dpi=100)
 	plt.show(False)	
+	exit()
 	print('manual fitting',len(keep))
 	print('-- Stars < {} in PSD vs. Rad plot:'.format(diff),len(keep))
 	return keep
@@ -1065,7 +1066,7 @@ def step_by_step_plot(keep,true,labelm1,labelm2,models,alldata,allfiles):
 	print('---done loading array.')
 	models=models[keep]
 	# exit()
-	for star in good_idx[194:195]:
+	for star in good_idx[193:194]:
 		file=allfiles[keep][star][0:-3]
 		# print(star,file)
 		timeseries,time,flux,f,amp,pssm,pssm_wnoise,wnoise,width=getps(file)
@@ -1378,15 +1379,19 @@ def get_inferred_logg_error(fracs,radii):
 	errors=np.zeros(len(fracs))
 	def powerlaw(x, p):
 		return p[0]*np.power(x,p[1])+p[2]
-	popt=[ 2.15178882e-04, -3.86638614e+00,  9.94698735e-03]
-
+	popt=[ 3.39135062e-04, -8.06421837e+00 , 6.74939173e-03]
+	
 	for fi in range(0,len(fracs)):
 		f=fracs[fi]
-		for i in range(0,len(data)):
-			if f > 0.8 or f < 0.2:
-				errors[fi]=0.2
-			else:
-				errors[fi]=powerlaw(f,popt)
+		if f > 0.96:
+			errors[fi]=0.2
+		elif f < 0.36:
+			errors[fi]=-99
+		elif powerlaw(f,popt) <= 0.02:
+			errors[fi]=0.02
+		else:
+			errors[fi]=powerlaw(f,popt)
+
 	logg_pos_err,logg_neg_err=errors,errors
 	return logg_pos_err,logg_neg_err
 
@@ -1616,9 +1621,8 @@ def get_table(keep,allfiles,testlabels,labels_m1,mass,rad_pos_err,rad_neg_err,rm
 	tlogg_pos_err=['{0:.3f}'.format(i) for i in tlogg_pos_err]
 	tlogg_neg_err=['{0:.3f}'.format(i) for i in tlogg_neg_err]
 	kps=['{0:.3f}'.format(i) for i in kps]
-
 	
-
+	
 	print('--- getting SNR...')
 	wnoise_frac=pd.read_csv('LLR_seismic/astero_wnoise_frac.txt',delimiter=' ',names=['KICID','More','Less'])
 	snr=[]
@@ -1635,9 +1639,13 @@ def get_table(keep,allfiles,testlabels,labels_m1,mass,rad_pos_err,rad_neg_err,rm
 	# Set -999 for inferred mass of outliers:
 	mass[outliers]=-999
 	
+	for i in range(0,len(true_logg)):
+		if snr[i] <=0.36:
+			true_logg[i]==-99
+
 	from itertools import zip_longest
 	header = ['KICID','Kp', 'Teff', 'Radius','Radp','Radn','True_Logg','TLoggp','TLoggn','Inferred_Logg','ILoggp','ILoggn','True_Mass','TMassp','TMassn','Inferred_Mass','IMassp','IMassn','SNR','Outlier'] 
-	text_filename='LLR_seismic/Seismic_Sample_v2.csv'
+	text_filename='LLR_seismic/Seismic_Sample_v5.csv'
 	
 	data=kics,kps,teffs,radii,rad_pos_err,rad_neg_err,true_logg,tlogg_pos_err,tlogg_neg_err,infer_logg,ilogg_pos_err,ilogg_neg_err,tmass,tmass_errp,tmass_errn,mass,mass_errp,mass_errn,snr,outliers_flag
 	export_data = zip_longest(*data, fillvalue = '')
@@ -1722,7 +1730,7 @@ def main(start):
 
 	oparams,radii,mass,true_logg,infer_logg,rad_pos_err,rad_neg_err=get_mass(keep,testlabels,labels_m1,labels_m2,all_files)
 	tlogg_pos_err,tlogg_neg_err=get_true_logg_err(all_files,keep,oparams[0])
-	# tlogg_pos_err,tlogg_neg_err=[0]*len(radii),[0]*len(radii) ONLY USE FOR TESTING
+	# tlogg_pos_err,tlogg_neg_err=[0]*len(radii),[0]*len(radii) #ONLY USE FOR TESTING
 
 	# result_hists=investigate_outliers(outliers,keep,all_files,testlabels,labels_m1)
 	# pplot_outliers_together(keep,outliers,testlabels,labels_m1,labels_m2,tlogg_pos_err,tlogg_neg_err,result_hists)
@@ -1733,7 +1741,7 @@ def main(start):
 	# get_mass_radius_plot(kics,rms,radii,mass,infer_logg,true_logg,rad_pos_err,rad_neg_err,logg_pos_err,logg_neg_err)
 	# np.save('index_of_good_stars.npy',keep)
 	
-	# step_by_step_plot(keep,testlabels,labels_m1,labels_m2,spectra_m1,all_data,all_files)
+	step_by_step_plot(keep,testlabels,labels_m1,labels_m2,spectra_m1,all_data,all_files)
 	
 	#logg_pos_err,logg_neg_err=ge#t_logg_error(keep,all_files)
 	# logg_pos_err,logg_neg_err=[0]*len(keep),[0]*len(keep)

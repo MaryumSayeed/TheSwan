@@ -23,7 +23,7 @@ yu_loggs=np.array(yu_2018['logg'])
 pande_true=np.zeros(len(pande_kics))
 for i in range(0,len(pande_kics)):
 	kic=pande_kics[i]
-	print(type(kic),type(yu_kics[0]))
+	# print(type(kic),type(yu_kics[0]))
 	if kic in yu_kics:
 		idx=np.where(yu_kics==kic)[0]
 		tlogg=yu_loggs[idx]
@@ -40,7 +40,7 @@ idx=np.where(pande_true>0)[0]
 pande_true,pande_pred=pande_true[idx],pande_pred[idx]
 print(mad_std(pande_pred-pande_true))
 print(np.std(pande_pred-pande_true))
-exit()
+# exit()
 
 # print(pande18[0:3])
 # print(np.min(pande18[:,0]))
@@ -56,8 +56,8 @@ astero_files4=np.loadtxt(adir+'astero_final_sample_4.txt',usecols=[0],dtype='str
 
 # astero_infer=np.load(psdir+'jan2020_astero_sample/labels_m1.npy')
 # astero_true=np.load(psdir+'jan2020_astero_sample/testlabels.npy')[6135:]
-filename='LLR_seismic/Seismic_Catalogue.txt'
-df=pd.read_csv(filename,index_col=False,delimiter=';')
+filename='LLR_seismic/Seismic_Sample_v4.csv'
+df=pd.read_csv(filename,index_col=False)
 df=df[df['Outlier']==0]
 astero_true=np.array(df['True_Logg'])
 astero_pred=np.array(df['Inferred_Logg'])
