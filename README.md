@@ -1,4 +1,7 @@
 # The Swan
+
+[![DOI](https://zenodo.org/badge/234663403.svg)](https://zenodo.org/badge/latestdoi/234663403)
+
 Data-driven method to infer stellar surface gravities from *Kepler* power spectra using local linear regression. The code also references, and is based on the infrastructure, of The Cannon ([Ness et al. 2015](https://ui.adsabs.harvard.edu/abs/2018ApJ...866...15N/abstract); [The Cannon](https://github.com/mkness/TheCannon)).
 
 ## Authors
