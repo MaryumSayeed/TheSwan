@@ -1,37 +1,12 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[1]:
-
-
-import numpy as np
-import pickle, os, sys
-import matplotlib.pyplot as plt
-from scipy.stats import chisquare
-from astropy.io import ascii
-import time
-from numpy.linalg import lstsq
-from astropy.stats import mad_std
-import pickle, glob, re
 import numpy as np
 import pandas as pd
-import datetime
-from astropy.io import ascii
-from astropy.io import fits
-from astropy.convolution import convolve, Gaussian1DKernel, Box1DKernel
-from astropy.stats import LombScargle
-from scipy.signal import savgol_filter as savgol
-import time
+from numpy.linalg import lstsq
 import matplotlib.pyplot as plt
-from matplotlib import rc
 from astropy.stats import mad_std
-from sklearn.metrics import r2_score
-import matplotlib.image as mpimg
-from scipy.stats import chisquare
-# rc('text', usetex=True)
-import argparse
-
-# In[2]:
+import os, sys, time, re, datetime, argparse
 
 # Create the parser
 my_parser = argparse.ArgumentParser(description='Run LLR on given sample.')
@@ -66,23 +41,19 @@ else:
     print('Sample not recognized. Try "Gaia" or "Seismic".')
 
 
-plt.rcParams['xtick.major.size'] = 5
-plt.rcParams['xtick.major.width'] = 3
-plt.rcParams['xtick.minor.size'] = 5
-plt.rcParams['xtick.minor.width'] = 3
-plt.rcParams['ytick.major.size'] = 5
-plt.rcParams['ytick.major.width'] = 3
-plt.rcParams['ytick.minor.size'] = 5
-plt.rcParams['ytick.minor.width'] = 3
-plt.rcParams['axes.linewidth'] = 3
 plt.rcParams['font.size']=18
-plt.rcParams['mathtext.default']='regular'
-plt.rcParams['xtick.major.pad']='6'
-plt.rcParams['ytick.major.pad']='8'
-
-
-# In[3]:
-
+plt.rcParams['axes.linewidth']    = 3
+plt.rcParams['xtick.major.pad']   ='6'
+plt.rcParams['ytick.major.pad']   ='8'
+plt.rcParams['xtick.major.size']  = 5
+plt.rcParams['xtick.minor.size']  = 5
+plt.rcParams['ytick.major.size']  = 5
+plt.rcParams['ytick.minor.size']  = 5
+plt.rcParams['xtick.major.width'] = 3
+plt.rcParams['xtick.minor.width'] = 3
+plt.rcParams['ytick.major.width'] = 3
+plt.rcParams['ytick.minor.width'] = 3
+plt.rcParams['mathtext.default']  ='regular'
 
 def predict_labels_1(spectrum, P, L):
     '''
@@ -129,10 +100,6 @@ def predict_labels_2(spectrum, P, L):
     spectrum = (spectrum-muP)/sP    #pivot the test spectrum (z-score) [shape: (npix,)]
     T   = lstsq(P, L)[0]            #solves for x in Px=L for knn [shape: (npix,nlabel)]
     return np.dot(spectrum, T)*sL + muL
-
-
-# In[4]:
-    
 
 def getlowestchi2(chi2_values,teststar):
     lowest_chi2 = sorted(chi2_values)[0:11]
@@ -193,21 +160,6 @@ def getinferredlabels(trainlabels,traindata,nstars,allfiles):
     # if analyzing astero. sample: nast = 5964
     nast=NAST#5964
 
-    #for teststar in range(nast,nast+ngaia):
-    #delete lines below after done simul wnoise stuff
-    # print(np.shape(trainlabels))
-    # t2=trainlabels[6135:]
-    # print('len(t2):',len(t2))
-    # i1=np.where((t2>2.) & (t2<2.5))[0][0:200]
-    # i2=np.where((t2>2.5) & (t2<3.))[0][0:200]
-    # i3=np.where((t2>3.) & (t2<3.5))[0][0:200]
-    # i4=np.where((t2>3.5) & (t2<4.))[0][0:200]
-    # i5=np.where((t2>4.) & (t2<4.5))[0][0:200]
-    # i6=np.where((t2>4.5))[0][0:200]
-    
-    # want_idx=np.concatenate([i1,i2,i3,i4,i5,i6])
-    # print('len(want_idx)=',len(want_idx))
-    # want_idx=want_idx+6135
     #delete lines above after done simul wnoise stuff
     for teststar in range(nast,nast+ngaia):
         #if teststar in want_idx:#delete this line after done simul wnoise stuff
@@ -227,7 +179,6 @@ def getinferredlabels(trainlabels,traindata,nstars,allfiles):
 
             s1=time.time()
             chi2_idx,smallest_chi2 =getlowestchi2(allchi2,teststar)
-            #print(traindata[chi2_idx,:])
             
             print('   getlowestchi2',time.time()-s1)
 
@@ -262,70 +213,6 @@ def getinferredlabels(trainlabels,traindata,nstars,allfiles):
     print('End:',datetime.datetime.now())
     return testlabels,infer_avg,infer_m1,model_spectra,infer_m2,min_chi2
 
-
-'''def getinferredlabels(trainlabels,traindata,testdata_file):
-    print('Getting test data...')
-    a=open(testdata_file,'rb')
-    testdata=pickle.load(a)
-    a.close()
-    testlabels=testdata[1]
-    testlabels=testlabels[:,0]
-
-    nstars        =np.shape(testdata)[1]
-    infer_avg     =np.zeros(nstars)
-    infer_m1      =np.zeros(nstars)
-    infer_m2      =np.zeros(nstars)
-    model_spectra   =[]
-    
-    totalstart=time.time()
-    print('Begin:',datetime.datetime.now())
-    for teststar in range(len(infer_avg)):
-        print('Star #',teststar)
-        s1=time.time()
-        allchi2=np.zeros(len(trainlabels))
-        test  =testdata[0][:,teststar,1] #compare log(PSD) values
-        for trainstar in range(len(trainlabels)):
-            train =traindata[:,trainstar,1]
-            chi2,_=chisquare(f_obs=test,f_exp=train)
-            allchi2[trainstar] = chi2
-        lowest_chi2 = sorted(allchi2)[0:10]
-        chi2_idx    = np.array([np.where(allchi2==i)[0][0] for i in lowest_chi2]) # find index of 10 lowest chi2 values
-        avg_logg    = np.average(trainlabels[chi2_idx])                           # find avg of 10 loggs with lowest chi2 values
-        min_idx     = np.where(allchi2==np.min(allchi2))[0][0]
-        closest_logg  = trainlabels[min_idx]
-        closest_spectra = [] #10 closest spectra in training data
-        for i in range(len(chi2_idx)):
-            closest_spectra.append(traindata[:,chi2_idx[i],1])
-        closest_labels = [[i] for i in trainlabels[chi2_idx]]
-    
-        label_m1,spectrum_m1 = predict_labels_1(test, closest_spectra, closest_labels)
-        label_m1=label_m1[0]
-        
-        label_m2=predict_labels_2(test, closest_spectra, closest_labels)
-        label_m2=label_m2[0]
-        best_logg =avg_logg
-
-        scatter_avg=round(testlabels[teststar]-best_logg,2)
-        scatter_m1 =round(testlabels[teststar]-label_m1,2)
-        scatter_m2 =round(testlabels[teststar]-label_m2,2)
-        print(teststar,'true:',testlabels[teststar])
-        print(' ','avg ',round(best_logg,2),'diff:',abs(scatter_avg))
-        print(' ','mod1',round(label_m1,2),'diff:',abs(scatter_m1))
-        print(' ','mod2',round(label_m2,2),'diff:',abs(scatter_m2))
-        infer_avg[teststar]   =best_logg
-        infer_m1[teststar]    =label_m1
-        infer_m2[teststar]    =label_m2
-        model_spectra.append(spectrum_m1)
-        print('  star: {}'.format(round(time.time()-s1,2)))
-        print('\n')
-
-    print('\n','total time taken:',time.time()-totalstart)
-    print('End:',datetime.datetime.now())
-    return testlabels,infer_avg,infer_m1,model_spectra,infer_m2'''
-
-# In[5]:
-
-#def gettraindata(text_file,pickle_file,nstars):
 def gettraindata(text_files,pickle_files):
     begintime=datetime.datetime.now()
     trainlabels=[]
@@ -336,23 +223,16 @@ def gettraindata(text_files,pickle_files):
     data_lengths=[]
     for i in range(0,len(text_files)):
         print(i,'getting data from:',pickle_files[i])
-        # pf=open(pickle_files[i],'rb')
-        # data,_=pickle.load(pf)
-        # pf.close()
         
-        # allpickledata.append(data[:,:,1].transpose())
         labels=np.loadtxt(text_files[i],delimiter=' ',usecols=[1])
         files=np.loadtxt(text_files[i],delimiter=' ',usecols=[0],dtype=str)
         stars= len(labels)
-        #data = np.memmap(pickle_files[i],dtype=np.float32,mode='r',shape=(21000,stars,3)) #for oversampling=10
         data = np.memmap(pickle_files[i],dtype=np.float32,mode='r',shape=(2099,stars,3)) #for oversampling=1: 2099, oversampling=5: 10498, oversampling=10: 20995
 
         trainlabels.append(labels)
         traindata=data[:,:,1].transpose()
-        print(traindata[0,:])
         alldata.append(traindata)
         allfiles.append(files)
-        # data_lengths.append(stars)
         star_count+=stars
     
     print('Concatenating data...')
@@ -361,7 +241,6 @@ def gettraindata(text_files,pickle_files):
     labels=np.concatenate((trainlabels),axis=0)
     allfiles=np.concatenate((allfiles),axis=0)
     print('     ',time.time()-s1)
-    #traindata=list(alldata[0])+list(alldata[1])+list(alldata[2]) #rows=nstars x columns=npix
     
     # Uncomment below if data NOT saved:
     # print('Concatenating data...')
@@ -380,27 +259,17 @@ def gettraindata(text_files,pickle_files):
     print('Shape of whole data set (stars, bins):',np.shape(alldata))
     print('Shape of labels:',np.shape(labels))
     print('Shape of files:',np.shape(allfiles))
-    # start,end=6300,6307
-    #print(allfiles[start:end])
-    #print(labels[start:end])
 
     total_stars=star_count
     print('Total # of stars:',total_stars)
     print('     ','took {}s.'.format(datetime.datetime.now()-begintime))
     return labels,alldata,total_stars,allfiles
 
-#print(min_chi2)
-# In[8]:
-
-
 def returnscatter(diffxy):
     #diffxy = inferred - true label values
     rms = (np.sum([ (val)**2.  for val in diffxy])/len(diffxy))**0.5
     bias = (np.mean([ (val)  for val in diffxy]))
     return bias, rms
-
-
-# In[12]:
 
 
 def plotresults(testlabels,infer,model_1,model_2):
@@ -463,7 +332,6 @@ def plotresults(testlabels,infer,model_1,model_2):
 
 # In[13]:
 
-#plotresults(testlabels[6000+5412:6000+5412+len(average)],average,labelm1,labelm2)
 # if analyzing pande. sample: start = 0
 # if analyzing astero. sample: start = 5964
 
@@ -496,6 +364,3 @@ if __name__ == '__main__':
 
     start=START#5964
     plotresults(testlabels[start:start+len(average)],average,labelm1,labelm2)
-
-
-exit()
